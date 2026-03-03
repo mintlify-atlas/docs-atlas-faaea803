@@ -1,0 +1,175 @@
+---
+title: 'picoclaw migrate'
+description: 'Migrate configuration and data to newer PicoClaw versions'
+icon: 'arrow-right-arrow-left'
+---
+
+## Overview
+
+The `migrate` command handles automatic migration of configuration files and data structures when upgrading PicoClaw to a new version.
+
+```bash
+picoclaw migrate
+```
+
+<Info>
+PicoClaw automatically runs migrations when it detects an older configuration format. You rarely need to run this command manually.
+</Info>
+
+## What Gets Migrated
+
+The migrate command handles:
+
+- **Legacy provider configuration** - Converts old `providers` format to new `model_list` format
+- **Configuration schema changes** - Updates config structure for new versions
+- **Workspace structure** - Reorganizes workspace directories if needed
+- **Database schema** - Updates SQLite databases (sessions, cron jobs, etc.)
+
+## When Migrations Run
+
+### Automatic Migration
+
+PicoClaw automatically detects and runs migrations when:
+
+1. Starting the agent or gateway
+2. Loading a configuration file with outdated format
+3. Accessing workspace data with old schema
+
+**Example automatic migration:**
+
+```
+[INFO] config: Auto-migrating legacy providers config to model_list
+[INFO] config: Migrated provider: openai → model_list[0]
+[INFO] config: Migrated provider: anthropic → model_list[1]
+[INFO] config: Migration complete
+```
+
+### Manual Migration
+
+You can manually trigger migration with:
+
+```bash
+picoclaw migrate
+```
+
+This is useful for:
+- Testing migrations before production use
+- Verifying configuration after manual edits
+- Troubleshooting migration issues
+
+## Migration Examples
+
+### Legacy Providers → model_list
+
+**Before migration:**
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-..."
+    },
+    "anthropic": {
+      "api_key": "sk-ant-..."
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "openai",
+      "model": "gpt-4"
+    }
+  }
+}
+```
+
+**After migration:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_key": "sk-..."
+    },
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-..."
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "gpt-4"
+    }
+  }
+}
+```
+
+## Migration Safety
+
+<CardGroup cols={2}>
+  <Card title="Backup created" icon="floppy-disk">
+    Original config is backed up to `config.json.backup` before migration
+  </Card>
+  
+  <Card title="Atomic updates" icon="shield">
+    Migrations are atomic - they either complete fully or roll back
+  </Card>
+  
+  <Card title="Validation" icon="check">
+    Migrated config is validated before replacing the original
+  </Card>
+  
+  <Card title="Reversible" icon="rotate-left">
+    You can restore from backup if migration causes issues
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Migration failed">
+    If migration fails:
+    
+    1. Check the backup file: `~/.picoclaw/config.json.backup`
+    2. Review the error message for specific issues
+    3. Restore from backup: `cp ~/.picoclaw/config.json.backup ~/.picoclaw/config.json`
+    4. Fix the issue manually and try again
+  </Accordion>
+
+  <Accordion title="Configuration not recognized after migration">
+    - Ensure you're using the latest PicoClaw version
+    - Check the migration log for warnings
+    - Verify the new config format matches the documentation
+    - Run `picoclaw status` to validate configuration
+  </Accordion>
+
+  <Accordion title="Old config format still in use">
+    - Migration may not have completed
+    - Run `picoclaw migrate` manually
+    - Check file permissions on config.json
+    - Ensure no other process is using the config file
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+1. **Backup before major upgrades** - Create a manual backup of your config before upgrading PicoClaw
+2. **Test in development** - Test migrations in a development environment first
+3. **Review changes** - Check the migrated config to understand what changed
+4. **Update custom scripts** - If you have scripts that read config.json, update them for new format
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Migration Guide" href="/advanced/migration" icon="book">
+    Detailed guide for migrating from legacy config format
+  </Card>
+  
+  <Card title="Configuration" href="/configuration/overview" icon="gear">
+    Learn about the new configuration format
+  </Card>
+  
+  <Card title="Model Configuration" href="/configuration/models" icon="sliders">
+    Understand the model_list configuration
+  </Card>
+</CardGroup>

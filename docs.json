@@ -51,7 +51,10 @@
               "commands/onboard",
               "commands/cron",
               "commands/status",
-              "commands/auth"
+              "commands/auth",
+              "commands/skills",
+              "commands/migrate",
+              "commands/version"
             ]
           },
           {

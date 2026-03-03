@@ -1,0 +1,220 @@
+---
+title: 'picoclaw skills'
+description: 'Manage custom skills for your PicoClaw agent'
+icon: 'puzzle-piece'
+---
+
+## Overview
+
+The `skills` command allows you to manage custom skills that extend your agent's capabilities. Skills are reusable prompt templates and instructions that can be loaded dynamically.
+
+```bash
+picoclaw skills [subcommand]
+```
+
+## Subcommands
+
+### list
+
+List all installed skills in your workspace.
+
+```bash
+picoclaw skills list
+```
+
+**Output:**
+```
+Installed skills:
+- git-workflow (workspace)
+- code-review (workspace)
+- mintlify-docs (global)
+```
+
+### list-builtin
+
+List all built-in skills that come with PicoClaw.
+
+```bash
+picoclaw skills list-builtin
+```
+
+**Output:**
+```
+Builtin skills:
+- example-skill
+- debug-helper
+```
+
+### install
+
+Install a skill from a URL or file path.
+
+```bash
+picoclaw skills install <url-or-path>
+```
+
+**Parameters:**
+
+<ParamField path="url-or-path" type="string" required>
+  URL to a skill file or local file path
+</ParamField>
+
+**Examples:**
+
+```bash
+# Install from URL
+picoclaw skills install https://example.com/skills/custom-skill.md
+
+# Install from local file
+picoclaw skills install /path/to/skill.md
+```
+
+### install-builtin
+
+Install a built-in skill to your workspace.
+
+```bash
+picoclaw skills install-builtin <skill-name>
+```
+
+**Parameters:**
+
+<ParamField path="skill-name" type="string" required>
+  Name of the built-in skill to install
+</ParamField>
+
+**Example:**
+
+```bash
+picoclaw skills install-builtin example-skill
+```
+
+### show
+
+Display the content of a skill.
+
+```bash
+picoclaw skills show <skill-name>
+```
+
+**Parameters:**
+
+<ParamField path="skill-name" type="string" required>
+  Name of the skill to display
+</ParamField>
+
+**Example:**
+
+```bash
+picoclaw skills show git-workflow
+```
+
+### search
+
+Search for skills by name or keyword.
+
+```bash
+picoclaw skills search <query>
+```
+
+**Parameters:**
+
+<ParamField path="query" type="string" required>
+  Search query (skill name or keyword)
+</ParamField>
+
+**Example:**
+
+```bash
+picoclaw skills search git
+```
+
+### remove
+
+Remove an installed skill from your workspace.
+
+```bash
+picoclaw skills remove <skill-name>
+```
+
+**Parameters:**
+
+<ParamField path="skill-name" type="string" required>
+  Name of the skill to remove
+</ParamField>
+
+**Example:**
+
+```bash
+picoclaw skills remove git-workflow
+```
+
+## Skill Locations
+
+Skills are loaded from three locations in order of priority:
+
+1. **Workspace skills**: `~/.picoclaw/workspace/skills/`
+2. **Global skills**: `~/.picoclaw/skills/`
+3. **Built-in skills**: Bundled with PicoClaw installation
+
+<Info>
+Workspace skills override global skills, and global skills override built-in skills with the same name.
+</Info>
+
+## Creating Custom Skills
+
+Skills are Markdown files with YAML frontmatter. See the [Skills feature guide](/features/skills) for detailed instructions on creating custom skills.
+
+**Example skill file:**
+
+```markdown
+---
+name: code-review
+description: Perform comprehensive code reviews
+---
+
+# Code Review Skill
+
+When reviewing code:
+1. Check for security vulnerabilities
+2. Look for performance issues
+3. Verify error handling
+4. Check code style and conventions
+5. Suggest improvements
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Project Templates" icon="folder">
+    Install skills for common project setups (Git workflows, CI/CD patterns)
+  </Card>
+  
+  <Card title="Code Review" icon="magnifying-glass">
+    Load specialized code review checklists and best practices
+  </Card>
+  
+  <Card title="Documentation" icon="book">
+    Install documentation writing guides (Mintlify, OpenAPI, etc.)
+  </Card>
+  
+  <Card title="Team Standards" icon="users">
+    Share team-specific coding standards and patterns
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Skills Feature" href="/features/skills" icon="puzzle-piece">
+    Learn about the skills system and how to create custom skills
+  </Card>
+  
+  <Card title="Agent Configuration" href="/configuration/agents" icon="robot">
+    Configure which skills your agent loads
+  </Card>
+  
+  <Card title="Workspace" href="/configuration/workspace" icon="folder">
+    Understand workspace structure and file organization
+  </Card>
+</CardGroup>

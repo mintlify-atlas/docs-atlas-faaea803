@@ -1,0 +1,121 @@
+---
+title: 'picoclaw version'
+description: 'Display PicoClaw version and build information'
+icon: 'tag'
+---
+
+## Overview
+
+The `version` command displays version information for your PicoClaw installation.
+
+```bash
+picoclaw version
+```
+
+**Alias:**
+```bash
+picoclaw v
+```
+
+## Output
+
+```
+██████╗ ██╗ ██████╗ ██████╗  ██████╗██╗      █████╗ ██╗    ██╗
+██╔══██╗██║██╔════╝██╔═══██╗██╔════╝██║     ██╔══██╗██║    ██║
+██████╔╝██║██║     ██║   ██║██║     ██║     ███████║██║ █╗ ██║
+██╔═══╝ ██║██║     ██║   ██║██║     ██║     ██╔══██║██║███╗██║
+██║     ██║╚██████╗╚██████╔╝╚██████╗███████╗██║  ██║╚███╔███╔╝
+╚═╝     ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝
+
+picoclaw v0.1.1
+  Build: 7c129eb (2026-02-20T10:30:45Z)
+  Go: go1.25.7
+```
+
+## Version Information
+
+The output includes:
+
+- **Version number** - Semantic version (e.g., v0.1.1)
+- **Build commit** - Git commit hash the binary was built from
+- **Build time** - When the binary was compiled
+- **Go version** - Version of Go used to compile the binary
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Check for updates" icon="download">
+    Compare your version against the latest release
+  </Card>
+  
+  <Card title="Troubleshooting" icon="wrench">
+    Include version info when reporting bugs
+  </Card>
+  
+  <Card title="Compatibility" icon="check">
+    Verify you have the minimum required version for a feature
+  </Card>
+  
+  <Card title="Build verification" icon="shield">
+    Confirm you're running an official build
+  </Card>
+</CardGroup>
+
+## Version Scheme
+
+PicoClaw follows [Semantic Versioning](https://semver.org/):
+
+- **Major version** (v1.x.x) - Breaking changes
+- **Minor version** (v0.1.x) - New features, backward compatible
+- **Patch version** (v0.1.1) - Bug fixes, backward compatible
+
+<Info>
+PicoClaw is currently in v0.x.x, indicating it's in active development. The API may change before v1.0.0 release.
+</Info>
+
+## Checking for Updates
+
+To check if a new version is available:
+
+```bash
+# Get current version
+picoclaw version
+
+# Check latest release on GitHub
+curl -s https://api.github.com/repos/sipeed/picoclaw/releases/latest | grep tag_name
+```
+
+Or visit the [releases page](https://github.com/sipeed/picoclaw/releases) directly.
+
+## Development Builds
+
+If you built from source, the version will show:
+
+```
+picoclaw dev
+  Build: abc1234-dirty (2026-02-20T15:45:30Z)
+  Go: go1.25.7
+```
+
+- **dev** - Built from non-tagged commit
+- **-dirty** - Built with uncommitted changes
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" href="/installation" icon="download">
+    Install or update PicoClaw
+  </Card>
+  
+  <Card title="Changelog" href="https://github.com/sipeed/picoclaw/releases" icon="list">
+    See what's new in each version
+  </Card>
+  
+  <Card title="Contributing" href="/community/contributing" icon="code">
+    Contribute to PicoClaw development
+  </Card>
+  
+  <Card title="Troubleshooting" href="/community/troubleshooting" icon="wrench">
+    Get help with issues
+  </Card>
+</CardGroup>
