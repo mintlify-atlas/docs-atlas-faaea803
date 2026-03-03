@@ -1,0 +1,173 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "PicoClaw",
+  "projectDescription": "Ultra-lightweight personal AI assistant running on <10MB RAM with sub-second boot time",
+  "theme": "aspen",
+  "primaryColor": "#3E5DB9",
+  "lightColor": "#5A7DD9",
+  "darkColor": "#2A4399",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/agents",
+              "concepts/tools",
+              "concepts/providers",
+              "concepts/security"
+            ]
+          },
+          {
+            "group": "Commands",
+            "pages": [
+              "commands/agent",
+              "commands/gateway",
+              "commands/onboard",
+              "commands/cron",
+              "commands/status",
+              "commands/auth"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/agents",
+              "configuration/models",
+              "configuration/providers",
+              "configuration/tools",
+              "configuration/workspace",
+              "configuration/environment-variables"
+            ]
+          },
+          {
+            "group": "Chat Channels",
+            "pages": [
+              "channels/overview",
+              "channels/telegram",
+              "channels/discord",
+              "channels/whatsapp",
+              "channels/qq",
+              "channels/dingtalk",
+              "channels/line",
+              "channels/wecom"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/web-search",
+              "features/heartbeat",
+              "features/memory",
+              "features/skills",
+              "features/scheduled-tasks",
+              "features/mcp"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/raspberry-pi",
+              "deployment/android",
+              "deployment/embedded-devices",
+              "deployment/systemd"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/subagents",
+              "advanced/custom-tools",
+              "advanced/load-balancing",
+              "advanced/migration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Tools API",
+            "pages": [
+              "api/tools/filesystem",
+              "api/tools/shell",
+              "api/tools/web",
+              "api/tools/message",
+              "api/tools/cron",
+              "api/tools/spawn"
+            ]
+          },
+          {
+            "group": "Provider API",
+            "pages": [
+              "api/providers/openai",
+              "api/providers/anthropic",
+              "api/providers/zhipu",
+              "api/providers/gemini",
+              "api/providers/custom"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Community",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "community/contributing",
+              "community/roadmap",
+              "community/troubleshooting",
+              "community/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Ultra-lightweight: <10MB memory footprint, 99% smaller than alternatives",
+    "Lightning fast: 1-second boot time even on 0.6GHz single core",
+    "Multi-platform: Single binary for RISC-V, ARM, x86 with Go",
+    "Multi-channel: Telegram, Discord, WhatsApp, QQ, DingTalk, LINE, WeCom integration",
+    "Multi-provider: OpenAI, Anthropic, Zhipu, Gemini, Ollama, and more",
+    "AI tools: Web search, file operations, shell execution, cron scheduling",
+    "Security sandbox: Workspace-restricted file and command execution",
+    "Heartbeat: Periodic autonomous task execution",
+    "Skills system: Custom skill loading and management",
+    "MCP support: Model Context Protocol integration"
+  ],
+  "publicApiSurface": [
+    "picoclaw agent - Interactive AI chat",
+    "picoclaw gateway - Start multi-channel gateway server",
+    "picoclaw onboard - Initialize configuration and workspace",
+    "picoclaw cron - Manage scheduled tasks and reminders",
+    "picoclaw status - Display system status",
+    "picoclaw auth - Manage provider authentication",
+    "read_file - Read file contents",
+    "write_file - Write files to workspace",
+    "list_dir - List directory contents",
+    "exec - Execute shell commands",
+    "edit_file - Edit files with search/replace",
+    "append_file - Append content to files",
+    "web_search - Search the web (Brave, Tavily, DuckDuckGo)",
+    "message - Send messages to users",
+    "cron_add - Schedule tasks with cron expressions",
+    "spawn - Create subagent for async tasks",
+    "mcp_tool - Execute MCP tools"
+  ]
+}
