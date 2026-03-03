@@ -1,0 +1,429 @@
+---
+title: Installation
+description: 'Install PicoClaw from precompiled binaries or build from source'
+---
+
+# Installation
+
+PicoClaw supports multiple installation methods across different platforms. Choose the method that works best for your environment.
+
+<CardGroup cols={2}>
+  <Card title="Precompiled Binary" icon="download" href="#precompiled-binary">
+    Fastest way to get started (recommended)
+  </Card>
+  <Card title="Build from Source" icon="code" href="#build-from-source">
+    Latest features and custom builds
+  </Card>
+  <Card title="Docker Compose" icon="docker" href="#docker-installation">
+    Containerized deployment
+  </Card>
+  <Card title="Android (Termux)" icon="mobile" href="#android-termux">
+    Run on old Android phones
+  </Card>
+</CardGroup>
+
+## Precompiled Binary
+
+The easiest way to install PicoClaw is to download a precompiled binary for your platform.
+
+<Steps>
+  <Step title="Download the Binary">
+    Visit the [GitHub Releases](https://github.com/sipeed/picoclaw/releases) page and download the appropriate binary for your platform:
+
+    **Available Platforms:**
+    - `picoclaw-linux-amd64` — Linux x86_64
+    - `picoclaw-linux-arm64` — Linux ARM64 (Raspberry Pi 4, etc.)
+    - `picoclaw-linux-arm` — Linux ARM 32-bit (Raspberry Pi Zero 2 W with 32-bit OS)
+    - `picoclaw-linux-riscv64` — Linux RISC-V 64-bit
+    - `picoclaw-darwin-amd64` — macOS Intel
+    - `picoclaw-darwin-arm64` — macOS Apple Silicon
+
+    <CodeGroup>
+    ```bash Linux x86_64
+    # Replace v0.1.1 with the latest version
+    wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-amd64
+    ```
+
+    ```bash Linux ARM64
+    # For Raspberry Pi 4, ARM64 boards
+    wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+    ```
+
+    ```bash Linux ARM (32-bit)
+    # For Raspberry Pi Zero 2 W (32-bit OS)
+    wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm
+    ```
+
+    ```bash macOS Apple Silicon
+    # For M1/M2/M3 Macs
+    wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-darwin-arm64
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Make it Executable">
+    Add execute permissions to the downloaded binary:
+
+    ```bash
+    chmod +x picoclaw-linux-amd64
+    ```
+
+    <Note>
+      Replace `picoclaw-linux-amd64` with the actual filename you downloaded.
+    </Note>
+  </Step>
+
+  <Step title="Move to PATH (Optional)">
+    For easier access, move the binary to a directory in your PATH:
+
+    ```bash
+    # Rename and move to /usr/local/bin
+    sudo mv picoclaw-linux-amd64 /usr/local/bin/picoclaw
+    ```
+
+    Now you can run `picoclaw` from anywhere!
+  </Step>
+
+  <Step title="Verify Installation">
+    Check that PicoClaw is installed correctly:
+
+    ```bash
+    picoclaw --version
+    ```
+
+    You should see version information printed to the terminal.
+  </Step>
+</Steps>
+
+### Platform-Specific Notes
+
+<AccordionGroup>
+  <Accordion title="Raspberry Pi Zero 2 W">
+    The Raspberry Pi Zero 2 W can run either 32-bit or 64-bit operating systems. Choose the correct binary:
+
+    - **32-bit Raspberry Pi OS** → Use `picoclaw-linux-arm`
+    - **64-bit Raspberry Pi OS** → Use `picoclaw-linux-arm64`
+
+    Check your OS architecture:
+    ```bash
+    uname -m
+    # armv7l = 32-bit (use picoclaw-linux-arm)
+    # aarch64 = 64-bit (use picoclaw-linux-arm64)
+    ```
+  </Accordion>
+
+  <Accordion title="macOS Gatekeeper Warning">
+    On macOS, you may see a security warning when running the binary. To allow it:
+
+    ```bash
+    xattr -d com.apple.quarantine picoclaw-darwin-arm64
+    ```
+
+    Or go to **System Preferences → Security & Privacy** and click "Allow Anyway".
+  </Accordion>
+
+  <Accordion title="RISC-V Devices">
+    For RISC-V devices like LicheeRV-Nano, use the `picoclaw-linux-riscv64` binary:
+
+    ```bash
+    wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-riscv64
+    chmod +x picoclaw-linux-riscv64
+    ./picoclaw-linux-riscv64 onboard
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Build from Source
+
+Building from source gives you access to the latest features and allows for custom builds.
+
+<Note>
+  **Requirements:**
+  - Go 1.21 or higher
+  - Git
+  - Make (optional, but recommended)
+</Note>
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/sipeed/picoclaw.git
+    cd picoclaw
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    make deps
+    ```
+
+    This installs all required Go dependencies.
+  </Step>
+
+  <Step title="Build PicoClaw">
+    Choose one of the following build options:
+
+    <CodeGroup>
+    ```bash Standard Build
+    # Build for your current platform
+    make build
+
+    # Binary will be in build/picoclaw-<platform>-<arch>
+    ```
+
+    ```bash Build & Install
+    # Build and install to /usr/local/bin
+    make install
+    ```
+
+    ```bash Build All Platforms
+    # Cross-compile for all supported platforms
+    make build-all
+
+    # Outputs:
+    # - build/picoclaw-linux-amd64
+    # - build/picoclaw-linux-arm64
+    # - build/picoclaw-linux-arm
+    # - build/picoclaw-darwin-amd64
+    # - build/picoclaw-darwin-arm64
+    # - etc.
+    ```
+
+    ```bash Raspberry Pi Zero 2 W
+    # Build both ARM variants
+    make build-pi-zero
+
+    # Or build specifically:
+    make build-linux-arm      # 32-bit
+    make build-linux-arm64    # 64-bit
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Run PicoClaw">
+    After building, run the binary:
+
+    ```bash
+    # If you used 'make install'
+    picoclaw onboard
+
+    # Or run directly from build directory
+    ./build/picoclaw-linux-amd64 onboard
+    ```
+  </Step>
+</Steps>
+
+### Advanced Build Options
+
+<AccordionGroup>
+  <Accordion title="Build with WhatsApp Native Support">
+    The WhatsApp native integration is optional to keep the binary small. To include it:
+
+    ```bash
+    make build-whatsapp-native
+    ```
+
+    Or manually:
+    ```bash
+    go build -tags whatsapp_native ./cmd/picoclaw
+    ```
+  </Accordion>
+
+  <Accordion title="Custom Build Flags">
+    For custom compilation:
+
+    ```bash
+    # Static binary (no external dependencies)
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o picoclaw ./cmd/picoclaw
+
+    # With version information
+    go build -ldflags="-X main.Version=v1.0.0" -o picoclaw ./cmd/picoclaw
+    ```
+  </Accordion>
+
+  <Accordion title="Development Build">
+    For development with hot reload:
+
+    ```bash
+    # Install air for hot reload
+    go install github.com/cosmtrek/air@latest
+
+    # Run with auto-reload
+    air
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Available Makefile Targets
+
+| Command | Description |
+|---------|-------------|
+| `make deps` | Install Go dependencies |
+| `make build` | Build for current platform |
+| `make build-all` | Cross-compile for all platforms |
+| `make build-linux-amd64` | Build for Linux x86_64 |
+| `make build-linux-arm64` | Build for Linux ARM64 |
+| `make build-linux-arm` | Build for Linux ARM 32-bit |
+| `make build-pi-zero` | Build both ARM variants for Pi Zero 2 W |
+| `make install` | Build and install to /usr/local/bin |
+| `make clean` | Remove build artifacts |
+
+## Docker Installation
+
+Run PicoClaw in a containerized environment without installing anything locally.
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/sipeed/picoclaw.git
+    cd picoclaw
+    ```
+  </Step>
+
+  <Step title="Initial Setup">
+    Run the first-time setup to generate the config file:
+
+    ```bash
+    docker compose -f docker/docker-compose.yml --profile gateway up
+    ```
+
+    The container will print "First-run setup complete." and exit.
+    This creates `docker/data/config.json`.
+  </Step>
+
+  <Step title="Configure API Keys">
+    Edit the generated config file:
+
+    ```bash
+    vim docker/data/config.json
+    ```
+
+    Add your API keys for LLM providers, bot tokens, etc. See the [Quickstart](/quickstart#configure-api-keys) for details.
+  </Step>
+
+  <Step title="Start the Gateway">
+    Start PicoClaw in detached mode:
+
+    ```bash
+    docker compose -f docker/docker-compose.yml --profile gateway up -d
+    ```
+
+    <Note>
+      **Docker Network Access**: By default, the Gateway listens on `127.0.0.1` which is not accessible from the host. If you need to access health endpoints or expose ports, set `PICOCLAW_GATEWAY_HOST=0.0.0.0` in your environment or update `config.json`.
+    </Note>
+  </Step>
+
+  <Step title="Verify it's Running">
+    Check the logs:
+
+    ```bash
+    docker compose -f docker/docker-compose.yml logs -f picoclaw-gateway
+    ```
+  </Step>
+</Steps>
+
+### Docker Agent Mode (One-shot)
+
+For quick questions without running the gateway:
+
+<CodeGroup>
+```bash One-shot Question
+# Ask a single question
+docker compose -f docker/docker-compose.yml run --rm picoclaw-agent -m "What is 2+2?"
+```
+
+```bash Interactive Mode
+# Enter interactive chat
+docker compose -f docker/docker-compose.yml run --rm picoclaw-agent
+```
+</CodeGroup>
+
+### Managing Docker Deployment
+
+<CodeGroup>
+```bash View Logs
+# Follow gateway logs
+docker compose -f docker/docker-compose.yml logs -f picoclaw-gateway
+```
+
+```bash Stop Services
+# Stop all containers
+docker compose -f docker/docker-compose.yml --profile gateway down
+```
+
+```bash Update to Latest
+# Pull latest image and restart
+docker compose -f docker/docker-compose.yml pull
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+```bash Clean Up
+# Remove containers and volumes
+docker compose -f docker/docker-compose.yml --profile gateway down -v
+```
+</CodeGroup>
+
+## Android (Termux)
+
+Give your decade-old Android phone a second life by turning it into a smart AI Assistant!
+
+<Steps>
+  <Step title="Install Termux">
+    Download Termux from [F-Droid](https://f-droid.org/packages/com.termux/) or Google Play.
+
+    <Warning>
+      Use the F-Droid version for the latest updates. The Google Play version is often outdated.
+    </Warning>
+  </Step>
+
+  <Step title="Download PicoClaw">
+    Inside Termux, download the ARM64 binary:
+
+    ```bash
+    # Replace v0.1.1 with the latest version
+    wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+    chmod +x picoclaw-linux-arm64
+    ```
+  </Step>
+
+  <Step title="Install proot">
+    PicoClaw needs a Linux-like environment:
+
+    ```bash
+    pkg install proot
+    ```
+  </Step>
+
+  <Step title="Initialize PicoClaw">
+    Run the onboarding process:
+
+    ```bash
+    termux-chroot ./picoclaw-linux-arm64 onboard
+    ```
+
+    Follow the instructions to complete configuration.
+  </Step>
+
+  <Step title="Start Using">
+    Run PicoClaw commands:
+
+    ```bash
+    termux-chroot ./picoclaw-linux-arm64 agent -m "Hello!"
+    ```
+  </Step>
+</Steps>
+
+<Check>
+  Now your old Android phone is a fully functional AI assistant! Proceed to the [Quick Start](/quickstart) guide to configure it.
+</Check>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Configure PicoClaw and start chatting
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Deep dive into configuration options
+  </Card>
+</CardGroup>

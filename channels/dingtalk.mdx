@@ -1,0 +1,384 @@
+---
+title: DingTalk Channel
+description: Connect PicoClaw to DingTalk (钉钉) for enterprise communication
+---
+
+DingTalk (钉钉) is a popular enterprise communication platform, especially in China. PicoClaw can integrate with DingTalk using internal application credentials.
+
+## Why DingTalk?
+
+- **Enterprise Ready**: Built for business communication and collaboration
+- **Popular in China**: Widely adopted by Chinese companies
+- **Rich Features**: Supports text, files, and rich media
+- **Internal Apps**: Secure integration via official API
+
+## Prerequisites
+
+- DingTalk account with organization admin access
+- Access to [DingTalk Open Platform](https://open.dingtalk.com/)
+- PicoClaw installed with LLM provider configured
+- ~20 minutes for setup
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Access DingTalk Open Platform">
+    1. Go to [DingTalk Open Platform](https://open.dingtalk.com/)
+    2. Log in with your DingTalk account
+    3. Navigate to **App Development** → **Internal Apps**
+
+    <Note>
+    You need organization admin permissions to create internal apps. Contact your DingTalk admin if you don't have access.
+    </Note>
+  </Step>
+
+  <Step title="Create an Internal App">
+    1. Click **Create Internal App**
+    2. Fill in application details:
+       - **App Name**: e.g., "PicoClaw Assistant"
+       - **App Description**: Describe your AI assistant
+       - **App Icon**: Upload an icon (optional)
+       - **Visibility**: Choose who can see the app in your organization
+    3. Click **Create**
+  </Step>
+
+  <Step title="Configure App Permissions">
+    After creating the app:
+
+    1. Go to **Permissions Management**
+    2. Enable required permissions:
+       - `qyapi_message.read` - Read messages
+       - `qyapi_message.write` - Send messages
+       - `qyapi_user.read` - Read user information (optional)
+       - `qyapi_group.read` - Read group info (if using groups)
+    3. Submit for admin approval if required
+    4. Wait for approval
+
+    <Tip>
+    Required permissions vary based on your use case. At minimum, you need message read/write permissions.
+    </Tip>
+  </Step>
+
+  <Step title="Get Credentials">
+    In your app's **Credentials & Basic Information** page:
+
+    1. Copy **Client ID** (also called AppKey)
+    2. Copy **Client Secret** (also called AppSecret)
+    3. Keep these secure
+
+    <Warning>
+    Client Secret grants full access to your app. Never share it publicly or commit to version control.
+    </Warning>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "dingtalk": {
+          "enabled": true,
+          "client_id": "YOUR_CLIENT_ID",
+          "client_secret": "YOUR_CLIENT_SECRET",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    Replace:
+    - `client_id`: Your app's Client ID/AppKey
+    - `client_secret`: Your app's Client Secret/AppSecret
+    - `allow_from`: DingTalk user IDs to allow (empty = allow all)
+  </Step>
+
+  <Step title="Start the Gateway">
+    Run PicoClaw Gateway:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    Look for confirmation:
+    ```
+    [INFO] dingtalk: Connected to DingTalk
+    [INFO] dingtalk: Listening for messages
+    ```
+  </Step>
+
+  <Step title="Test Your Bot">
+    1. Open DingTalk desktop or mobile app
+    2. Go to **Workbench** → Find your app
+    3. Open the app and send a message
+    4. The bot should respond with AI-generated replies
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Basic Configuration
+
+```json
+{
+  "channels": {
+    "dingtalk": {
+      "enabled": true,
+      "client_id": "YOUR_CLIENT_ID",
+      "client_secret": "YOUR_CLIENT_SECRET",
+      "allow_from": []
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Enable DingTalk channel |
+| `client_id` | string | Yes | Client ID/AppKey from DingTalk Open Platform |
+| `client_secret` | string | Yes | Client Secret/AppSecret |
+| `allow_from` | array | No | List of allowed DingTalk user IDs (empty = allow all) |
+
+### Access Control
+
+**Allow specific users:**
+```json
+{
+  "allow_from": ["user123", "user456"]
+}
+```
+
+You can find user IDs in:
+- DingTalk admin console → User Management
+- From webhook payloads (check logs)
+- Using DingTalk API to query users
+
+**Allow everyone in organization:**
+```json
+{
+  "allow_from": []
+}
+```
+
+<Note>
+An empty `allow_from` array allows all users in your DingTalk organization. External users cannot access internal apps.
+</Note>
+
+## Features
+
+### Text Messages
+
+Send and receive text messages with conversation context maintained per user.
+
+### Group Chats
+
+Add the bot to DingTalk group chats:
+- Responds to messages based on configuration
+- Can be triggered by @mentions
+- Maintains separate context per group
+
+### Rich Messaging
+
+DingTalk supports:
+- Markdown formatting
+- Interactive cards (ActionCards)
+- Links and buttons
+- File attachments
+
+<Tip>
+Depending on PicoClaw implementation, the bot may support sending formatted messages using DingTalk's rich message APIs.
+</Tip>
+
+### Organizational Integration
+
+Internal apps can:
+- Access organizational structure
+- Query user information
+- Integrate with DingTalk workflows
+- Send notifications to specific users/groups
+
+## Troubleshooting
+
+### "Invalid Client ID or Client Secret"
+
+**Possible causes**:
+1. Incorrect credentials copied from platform
+2. App not yet approved by admin
+3. Credentials regenerated but not updated in config
+
+**Solution**:
+1. Verify credentials in DingTalk Open Platform
+2. Check app status (must be active)
+3. Ensure no extra spaces when copying credentials
+4. Regenerate credentials if needed
+
+### "Permission denied" errors
+
+**Cause**: App lacks required permissions
+
+**Solution**:
+1. Go to DingTalk Open Platform → Your App → Permissions
+2. Enable:
+   - Message read/write permissions
+   - User read permissions (if using allow_from)
+3. Submit for admin approval if required
+4. Wait for approval
+5. Restart `picoclaw gateway`
+
+### Bot doesn't respond
+
+**Check these**:
+
+1. **Gateway running**: `picoclaw gateway` must be active
+2. **Allow list**: Verify user ID in `allow_from` (or use empty array)
+3. **App visibility**: User must have access to the app in DingTalk
+4. **LLM configured**: Test with `picoclaw agent -m "test"`
+5. **Permissions**: Ensure app has message read/write permissions
+
+### User ID not recognized
+
+**Finding user IDs**:
+
+1. **Admin Console**: DingTalk admin → User Management
+2. **API**: Use DingTalk user query API
+3. **Logs**: Check Gateway logs for incoming message user IDs
+4. **Webhook**: Inspect webhook payload structure
+
+### Connection issues
+
+**Possible causes**:
+1. Network connectivity to DingTalk servers
+2. Firewall blocking outbound connections
+3. Client Secret expired or revoked
+4. App disabled by admin
+
+**Check**:
+- Gateway logs for specific error messages
+- DingTalk Open Platform for app status
+- Network connectivity to `oapi.dingtalk.com`
+- Organization admin settings
+
+## Rate Limits
+
+DingTalk enforces rate limits on internal apps:
+
+- **API calls**: Varies by organization size and app type
+- **Message sending**: Typically limited to prevent spam
+- **Frequency**: May have per-minute/per-hour limits
+
+<Note>
+Check DingTalk Open Platform documentation for current rate limits. Limits may vary based on your organization's plan.
+</Note>
+
+## Privacy & Security
+
+<Warning>
+**Security Best Practices**:
+
+- Never share Client Secret
+- Never commit credentials to repositories
+- Use `allow_from` for sensitive bots
+- Regenerate credentials if compromised
+- Monitor app usage in DingTalk admin console
+- Review audit logs regularly
+- Follow your organization's security policies
+</Warning>
+
+### Data Privacy
+
+Internal apps can access:
+- Messages sent to the bot
+- User profiles (with permissions)
+- Organizational structure (with permissions)
+- Group information
+
+Be aware of:
+- DingTalk/Alibaba privacy policies
+- Your organization's data policies
+- Local data storage in PicoClaw workspace
+- LLM provider data logging
+- Chinese data protection laws (if applicable)
+
+## Complete Example
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "glm-4"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "glm-4",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key"
+    }
+  ],
+  "channels": {
+    "dingtalk": {
+      "enabled": true,
+      "client_id": "dingxxxxxxxxxxxxxx",
+      "client_secret": "abcdef1234567890abcdef1234567890",
+      "allow_from": []
+    }
+  }
+}
+```
+
+## Regional Considerations
+
+<Note>
+**China-Specific Notes**:
+
+- DingTalk is primarily used in mainland China
+- Servers are hosted in China for compliance
+- Consider using Chinese LLM providers (Zhipu, Qwen, DeepSeek)
+- Be aware of content filtering requirements
+- Follow Chinese data protection regulations
+- International version exists but has limited features
+</Note>
+
+### Recommended LLM Providers
+
+For DingTalk in China, use local LLM providers for better latency and compliance:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key"
+    },
+    {
+      "model_name": "qwen",
+      "model": "qwen/qwen-plus",
+      "api_key": "your-qwen-key"
+    },
+    {
+      "model_name": "deepseek",
+      "model": "deepseek/deepseek-chat",
+      "api_key": "your-deepseek-key"
+    }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="QQ Channel" icon="message" href="/channels/qq">
+    Another popular Chinese platform
+  </Card>
+  <Card title="WeCom Channel" icon="wechat" href="/channels/wecom">
+    Enterprise WeChat alternative
+  </Card>
+  <Card title="Telegram Channel" icon="telegram" href="/channels/telegram">
+    International messaging platform
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Advanced configuration options
+  </Card>
+</CardGroup>

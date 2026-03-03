@@ -1,0 +1,339 @@
+---
+title: 'Load Balancing'
+description: 'Configure multiple LLM endpoints for high availability and cost optimization'
+icon: 'scale-balanced'
+---
+
+## Overview
+
+PicoClaw supports **load balancing** across multiple LLM provider endpoints. This enables:
+
+- **High availability** - Automatic failover if one endpoint is down
+- **Rate limit avoidance** - Distribute requests across multiple API keys
+- **Cost optimization** - Route to cheaper endpoints or free tiers
+- **Geographic distribution** - Use regional endpoints for lower latency
+
+## How Load Balancing Works
+
+When you configure multiple entries with the same `model_name`, PicoClaw uses **round-robin** selection:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_key": "sk-key1"
+    },
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_key": "sk-key2"
+    },
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_key": "sk-key3"
+    }
+  ]
+}
+```
+
+**Request routing:**
+1. First request → Entry 1 (sk-key1)
+2. Second request → Entry 2 (sk-key2)
+3. Third request → Entry 3 (sk-key3)
+4. Fourth request → Entry 1 (sk-key1) (round-robin restarts)
+
+<Info>
+Round-robin selection happens at the time of each LLM request, distributing load evenly across all configured endpoints.
+</Info>
+
+## Use Cases
+
+### 1. Multiple API Keys (Rate Limit Avoidance)
+
+Distribute requests across multiple API keys for the same provider:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "claude-sonnet",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-key1"
+    },
+    {
+      "model_name": "claude-sonnet",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-key2"
+    },
+    {
+      "model_name": "claude-sonnet",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-key3"
+    }
+  ]
+}
+```
+
+**Benefits:**
+- Avoid hitting rate limits on a single key
+- Increase effective request throughput
+- Maintain service during key rotation
+
+### 2. Geographic Distribution
+
+Use regional endpoints for lower latency:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_base": "https://us-east.api.openai.com/v1",
+      "api_key": "sk-us-key"
+    },
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_base": "https://eu-west.api.openai.com/v1",
+      "api_key": "sk-eu-key"
+    },
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_base": "https://ap-southeast.api.openai.com/v1",
+      "api_key": "sk-ap-key"
+    }
+  ]
+}
+```
+
+### 3. Mixed Providers (Cost Optimization)
+
+Balance between expensive and cheap providers:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "smart-agent",
+      "model": "openai/gpt-4",
+      "api_key": "sk-openai-key"
+    },
+    {
+      "model_name": "smart-agent",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-key"
+    },
+    {
+      "model_name": "smart-agent",
+      "model": "deepseek/deepseek-chat",
+      "api_key": "sk-deepseek-key"
+    }
+  ]
+}
+```
+
+**Result:** Requests are distributed across OpenAI, Anthropic, and DeepSeek, averaging out costs.
+
+### 4. Primary + Backup (High Availability)
+
+Combine load balancing with fallback chains:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "production",
+      "model": "openai/gpt-4",
+      "api_base": "https://primary.api.com/v1",
+      "api_key": "primary-key"
+    },
+    {
+      "model_name": "production",
+      "model": "openai/gpt-4",
+      "api_base": "https://backup.api.com/v1",
+      "api_key": "backup-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "production",
+      "fallbacks": ["production", "deepseek/deepseek-chat"]
+    }
+  }
+}
+```
+
+**Behavior:**
+- Normal: Round-robin between primary and backup
+- If primary fails: Use backup endpoint
+- If both fail: Fallback to DeepSeek
+
+## Configuration Examples
+
+### Load Balancing with Timeout
+
+Set per-endpoint timeouts for faster failover:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "fast-agent",
+      "model": "groq/llama-3.3-70b-versatile",
+      "api_key": "gsk-key1",
+      "request_timeout": 30
+    },
+    {
+      "model_name": "fast-agent",
+      "model": "groq/llama-3.3-70b-versatile",
+      "api_key": "gsk-key2",
+      "request_timeout": 30
+    }
+  ]
+}
+```
+
+### Multi-Region LiteLLM Proxy
+
+Balance across multiple LiteLLM proxy instances:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "proxy-model",
+      "model": "litellm/gpt-4",
+      "api_base": "http://us-proxy:4000/v1",
+      "api_key": "sk-litellm-us"
+    },
+    {
+      "model_name": "proxy-model",
+      "model": "litellm/gpt-4",
+      "api_base": "http://eu-proxy:4000/v1",
+      "api_key": "sk-litellm-eu"
+    }
+  ]
+}
+```
+
+### Self-Hosted VLLM Cluster
+
+Balance across multiple VLLM inference servers:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "llama-local",
+      "model": "vllm/llama-3-8b",
+      "api_base": "http://gpu-node-1:8000/v1"
+    },
+    {
+      "model_name": "llama-local",
+      "model": "vllm/llama-3-8b",
+      "api_base": "http://gpu-node-2:8000/v1"
+    },
+    {
+      "model_name": "llama-local",
+      "model": "vllm/llama-3-8b",
+      "api_base": "http://gpu-node-3:8000/v1"
+    }
+  ]
+}
+```
+
+## Monitoring Load Distribution
+
+Check which endpoints are being used:
+
+```bash
+picoclaw status
+```
+
+This shows all configured providers and their health status.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use same model across endpoints" icon="equals">
+    For consistent behavior, use the same model (e.g., gpt-4) across all balanced endpoints
+  </Card>
+  
+  <Card title="Set reasonable timeouts" icon="clock">
+    Configure `request_timeout` to detect slow endpoints quickly
+  </Card>
+  
+  <Card title="Monitor usage" icon="chart-line">
+    Track which endpoints are being used and adjust distribution as needed
+  </Card>
+  
+  <Card title="Test failover" icon="shield-check">
+    Regularly test that backup endpoints work correctly
+  </Card>
+  
+  <Card title="Combine with fallbacks" icon="diagram-project">
+    Use fallback chains for ultimate reliability
+  </Card>
+  
+  <Card title="Consider costs" icon="dollar-sign">
+    Balance load across free tiers to maximize value
+  </Card>
+</CardGroup>
+
+## Load Balancing vs Fallbacks
+
+| Feature | Load Balancing | Fallback Chain |
+|---------|----------------|----------------|
+| **Purpose** | Distribute requests evenly | Handle failures gracefully |
+| **Selection** | Round-robin | Sequential on error |
+| **Use case** | Rate limits, cost, latency | High availability, redundancy |
+| **Configuration** | Same `model_name` multiple times | `fallbacks` array |
+
+**Use both together** for maximum reliability and performance.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Requests only going to one endpoint">
+    - Ensure all entries have the **exact same** `model_name`
+    - Check that all endpoints are configured correctly
+    - Verify API keys are valid
+  </Accordion>
+
+  <Accordion title="High latency on some requests">
+    - One or more endpoints may be slow
+    - Set `request_timeout` to fail fast and retry
+    - Consider removing slow endpoints from rotation
+  </Accordion>
+
+  <Accordion title="Hitting rate limits despite load balancing">
+    - You may need more API keys
+    - Check if requests are concentrated on certain endpoints
+    - Ensure round-robin is working (check logs)
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Model Configuration" href="/configuration/models" icon="sliders">
+    Complete guide to model_list configuration
+  </Card>
+  
+  <Card title="Provider API" href="/api/providers/custom" icon="plug">
+    Set up custom endpoints and proxies
+  </Card>
+  
+  <Card title="Agent Config" href="/configuration/agents" icon="robot">
+    Configure agents with fallback chains
+  </Card>
+  
+  <Card title="Providers" href="/concepts/providers" icon="network-wired">
+    Understand the provider system architecture
+  </Card>
+</CardGroup>

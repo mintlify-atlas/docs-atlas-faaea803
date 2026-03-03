@@ -1,0 +1,406 @@
+---
+title: 'picoclaw status'
+description: 'Show PicoClaw configuration and system status'
+---
+
+## Overview
+
+The `status` command displays comprehensive information about your PicoClaw installation, including configuration status, workspace location, model settings, provider authentication, and available API keys.
+
+## Usage
+
+```bash
+picoclaw status
+```
+
+**Alias:** `picoclaw s`
+
+## Output
+
+The command shows:
+
+1. **Version Information**: PicoClaw version and build details
+2. **Configuration Status**: Location and validity of config file
+3. **Workspace Status**: Location and validity of workspace directory
+4. **Model Configuration**: Currently configured default model
+5. **Provider Status**: API key availability for all providers
+6. **OAuth Authentication**: Active OAuth sessions
+
+## Example Output
+
+### Fully Configured System
+
+```bash
+picoclaw status
+```
+
+**Output:**
+```
+🤖 picoclaw Status
+Version: 1.0.0
+Build: linux/amd64 2026-03-03
+
+Config: ~/.config/picoclaw/config.yaml ✓
+Workspace: ~/.picoclaw/workspace ✓
+Model: claude-sonnet-4.6
+OpenRouter API: ✓
+Anthropic API: ✓
+OpenAI API: not set
+Gemini API: ✓
+Zhipu API: not set
+Qwen API: not set
+Groq API: ✓
+Moonshot API: not set
+DeepSeek API: not set
+VolcEngine API: not set
+Nvidia API: not set
+vLLM/Local: not set
+Ollama: ✓ http://localhost:11434
+
+OAuth/Token Auth:
+  openai (oauth): authenticated
+  google-antigravity (oauth): authenticated
+```
+
+### Minimal Configuration
+
+```bash
+picoclaw status
+```
+
+**Output:**
+```
+🤖 picoclaw Status
+Version: 1.0.0
+
+Config: ~/.config/picoclaw/config.yaml ✓
+Workspace: ~/.picoclaw/workspace ✓
+Model: gpt-5.2
+OpenRouter API: not set
+Anthropic API: not set
+OpenAI API: ✓
+Gemini API: not set
+Zhipu API: not set
+Qwen API: not set
+Groq API: not set
+Moonshot API: not set
+DeepSeek API: not set
+VolcEngine API: not set
+Nvidia API: not set
+vLLM/Local: not set
+Ollama: not set
+```
+
+### Not Onboarded
+
+```bash
+picoclaw status
+```
+
+**Output:**
+```
+🤖 picoclaw Status
+Version: 1.0.0
+
+Config: ~/.config/picoclaw/config.yaml ✗
+Workspace: ~/.picoclaw/workspace ✗
+```
+
+**Action Required**: Run `picoclaw onboard` first
+
+## Provider Status Indicators
+
+### ✓ (Checkmark)
+Provider is configured with an API key or endpoint.
+
+```
+Anthropic API: ✓
+```
+
+### not set
+Provider is not configured.
+
+```
+OpenAI API: not set
+```
+
+### With URL
+Local providers show their endpoint:
+
+```
+Ollama: ✓ http://localhost:11434
+vLLM/Local: ✓ http://localhost:8000
+```
+
+## OAuth Authentication Status
+
+When OAuth providers are authenticated, additional information is shown:
+
+```
+OAuth/Token Auth:
+  openai (oauth): authenticated
+    Account: user@example.com
+    Expires: 2026-04-03 12:00
+  
+  anthropic (token): authenticated
+  
+  google-antigravity (oauth): authenticated
+    Email: user@gmail.com
+    Project: my-project-123
+    Expires: 2026-03-03 18:00
+```
+
+### Status Values
+
+- **authenticated**: Valid credentials, ready to use
+- **expired**: OAuth token has expired (needs refresh or re-login)
+- **needs refresh**: Token is expiring soon (will auto-refresh)
+
+## Supported Providers
+
+The status command checks for:
+
+### Cloud Providers
+- **OpenRouter**: Multi-model access (100+ models)
+- **Anthropic**: Claude models
+- **OpenAI**: GPT models
+- **Gemini**: Google AI models
+- **Zhipu**: Chinese AI models
+- **Qwen**: Alibaba Cloud models
+- **Groq**: Fast inference
+- **Moonshot**: Chinese AI models
+- **DeepSeek**: Chinese AI models
+- **VolcEngine**: ByteDance AI
+- **Nvidia**: NVIDIA AI Foundation
+
+### Local Providers
+- **Ollama**: Local model runtime
+- **vLLM/Local**: Self-hosted vLLM server
+
+### OAuth Providers
+- **OpenAI**: OAuth authentication
+- **Anthropic**: Token authentication
+- **Google Antigravity**: Google Cloud Code Assist
+
+## Examples
+
+### Check Installation Status
+
+```bash
+picoclaw status
+```
+
+Use this after installation to verify everything is set up correctly.
+
+### Verify After Configuration
+
+After editing `config.yaml`, check that changes are recognized:
+
+```bash
+vim ~/.config/picoclaw/config.yaml
+# Make changes...
+picoclaw status
+```
+
+### Check OAuth Status
+
+After logging in with OAuth:
+
+```bash
+picoclaw auth login --provider openai
+picoclaw status
+```
+
+**Output:**
+```
+...
+OAuth/Token Auth:
+  openai (oauth): authenticated
+    Account: user@openai.com
+```
+
+### Verify Model Configuration
+
+Check which model is currently default:
+
+```bash
+picoclaw status | grep "Model:"
+```
+
+**Output:**
+```
+Model: claude-sonnet-4.6
+```
+
+### List All Configured Providers
+
+```bash
+picoclaw status | grep "✓"
+```
+
+**Output:**
+```
+Config: ~/.config/picoclaw/config.yaml ✓
+Workspace: ~/.picoclaw/workspace ✓
+Anthropic API: ✓
+Groq API: ✓
+Ollama: ✓ http://localhost:11434
+```
+
+## Configuration Paths
+
+### Default Locations
+
+**Config File:**
+```
+~/.config/picoclaw/config.yaml
+```
+
+**Workspace:**
+```
+~/.picoclaw/workspace/
+```
+
+### Custom Paths
+
+You can use environment variables to override:
+
+```bash
+export PICOCLAW_CONFIG=~/custom/config.yaml
+export PICOCLAW_WORKSPACE=~/custom/workspace
+picoclaw status
+```
+
+## Using Status for Diagnostics
+
+### Before First Use
+
+```bash
+picoclaw status
+```
+
+If config/workspace show ✗, run:
+
+```bash
+picoclaw onboard
+```
+
+### Before Starting Gateway
+
+```bash
+picoclaw status
+```
+
+Verify:
+- Config exists (✓)
+- At least one provider configured (✓)
+- Model is set
+
+### After Changing Providers
+
+```bash
+vim ~/.config/picoclaw/config.yaml
+# Change model or add API key
+picoclaw status  # Verify changes
+picoclaw agent -m "Test"  # Test connection
+```
+
+### Debugging Authentication Issues
+
+```bash
+picoclaw status
+```
+
+Look for:
+- Provider shows "not set" → Add API key
+- OAuth shows "expired" → Re-login with `picoclaw auth login`
+- OAuth shows "needs refresh" → Will auto-refresh on next use
+
+## Tips
+
+- **Quick Check**: Run `picoclaw status` before starting work to ensure everything is configured
+- **Provider Testing**: After adding a new API key, use status to verify it's recognized
+- **OAuth Monitoring**: Check expiration dates to know when to re-authenticate
+- **Troubleshooting**: Status is the first command to run when something isn't working
+- **CI/CD**: Use in scripts to verify deployment configuration
+
+## Common Issues
+
+### Config Not Found
+
+**Output:**
+```
+Config: ~/.config/picoclaw/config.yaml ✗
+```
+
+**Solution:**
+```bash
+picoclaw onboard
+```
+
+### No Providers Configured
+
+**Output:**
+```
+All providers show: not set
+```
+
+**Solution**: Add at least one API key:
+```bash
+vim ~/.config/picoclaw/config.yaml
+# Or use OAuth:
+picoclaw auth login --provider openai
+```
+
+### OAuth Expired
+
+**Output:**
+```
+OAuth/Token Auth:
+  openai (oauth): expired
+```
+
+**Solution**:
+```bash
+picoclaw auth login --provider openai
+```
+
+### Model Not Set
+
+**Output:**
+```
+Model: (none)
+```
+
+**Solution**: Edit config to set default model:
+```yaml
+agents:
+  defaults:
+    model_name: "claude-sonnet-4.6"
+```
+
+## Output Format
+
+The status command outputs human-readable text. For scripting, parse specific lines:
+
+```bash
+# Check if config exists
+picoclaw status | grep -q "Config.*✓" && echo "Config OK"
+
+# Get current model
+picoclaw status | grep "^Model:" | cut -d: -f2 | xargs
+
+# Check provider
+picoclaw status | grep "Anthropic API:" | grep -q "✓" && echo "Anthropic configured"
+```
+
+## Exit Codes
+
+- `0`: Always succeeds (displays status even if not configured)
+
+## See Also
+
+- [picoclaw onboard](/commands/onboard) - Initialize configuration
+- [picoclaw auth](/commands/auth) - Manage authentication
+- [Configuration Guide](/configuration) - Detailed configuration options
+- [Provider Setup](/providers) - Configure specific providers

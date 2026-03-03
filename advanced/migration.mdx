@@ -1,0 +1,430 @@
+---
+title: 'Migration Guide'
+description: 'Migrate from legacy providers configuration to the new model_list format'
+icon: 'arrow-right-arrow-left'
+---
+
+## Overview
+
+PicoClaw has transitioned from the legacy `providers` configuration to a new **`model_list`** format. The new format is:
+
+- **More flexible** - Configure multiple models from the same provider
+- **More powerful** - Support for load balancing and custom endpoints
+- **Vendor-agnostic** - Uses `vendor/model` format instead of separate provider + model
+- **Easier to understand** - Model-centric configuration
+
+<Warning>
+The legacy `providers` format is **deprecated** but still supported for backward compatibility. New features will only be added to `model_list`.
+</Warning>
+
+## Migration Overview
+
+The migration process involves:
+
+1. Moving provider configuration from `providers` to `model_list`
+2. Updating `agents.defaults.model` from model name to `vendor/model` format
+3. Removing the old `provider` field
+
+<Info>
+PicoClaw automatically migrates legacy configs at runtime, but you should update your config files manually for clarity.
+</Info>
+
+## Migration Examples
+
+### Example 1: OpenAI
+
+**Before (Legacy):**
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-...",
+      "api_base": "https://api.openai.com/v1"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "openai",
+      "model": "gpt-4"
+    }
+  }
+}
+```
+
+**After (New):**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_key": "sk-..."
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "gpt-4"
+    }
+  }
+}
+```
+
+### Example 2: Anthropic
+
+**Before:**
+```json
+{
+  "providers": {
+    "anthropic": {
+      "api_key": "sk-ant-..."
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4.6"
+    }
+  }
+}
+```
+
+**After:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-..."
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "claude-sonnet-4.6"
+    }
+  }
+}
+```
+
+### Example 3: Zhipu
+
+**Before:**
+```json
+{
+  "providers": {
+    "zhipu": {
+      "api_key": "your-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "zhipu",
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+**After:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+<Note>
+The `api_base` for Zhipu is optional in the new format - it's set automatically to the correct endpoint.
+</Note>
+
+### Example 4: Multiple Providers
+
+**Before:**
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-openai-..."
+    },
+    "anthropic": {
+      "api_key": "sk-ant-..."
+    },
+    "groq": {
+      "api_key": "gsk-..."
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "openai",
+      "model": "gpt-4"
+    }
+  }
+}
+```
+
+**After:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt-4",
+      "model": "openai/gpt-4",
+      "api_key": "sk-openai-..."
+    },
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-..."
+    },
+    {
+      "model_name": "llama-3-70b",
+      "model": "groq/llama-3.3-70b-versatile",
+      "api_key": "gsk-..."
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "gpt-4",
+      "fallbacks": ["claude-sonnet-4.6", "llama-3-70b"]
+    }
+  }
+}
+```
+
+### Example 5: Custom Endpoint
+
+**Before:**
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-...",
+      "api_base": "https://my-proxy.com/v1"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "openai",
+      "model": "custom-gpt-4"
+    }
+  }
+}
+```
+
+**After:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "custom-gpt-4",
+      "model": "openai/custom-gpt-4",
+      "api_key": "sk-...",
+      "api_base": "https://my-proxy.com/v1"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "custom-gpt-4"
+    }
+  }
+}
+```
+
+## Field Mapping
+
+| Legacy Field | New Field | Notes |
+|--------------|-----------|-------|
+| `providers.{vendor}.api_key` | `model_list[].api_key` | Same |
+| `providers.{vendor}.api_base` | `model_list[].api_base` | Optional, auto-detected for known providers |
+| `agents.defaults.provider` | (removed) | Now part of `model` field |
+| `agents.defaults.model` | `agents.defaults.model` | Now references `model_name` from `model_list` |
+
+## Vendor Name Mapping
+
+When migrating, use these vendor prefixes:
+
+| Provider | Vendor Prefix |
+|----------|---------------|
+| OpenAI | `openai/` |
+| Anthropic | `anthropic/` |
+| Zhipu AI (GLM) | `zhipu/` |
+| DeepSeek | `deepseek/` |
+| Google Gemini | `gemini/` |
+| Groq | `groq/` |
+| Moonshot | `moonshot/` |
+| Qwen (通义千问) | `qwen/` |
+| NVIDIA | `nvidia/` |
+| Ollama | `ollama/` |
+| OpenRouter | `openrouter/` |
+| LiteLLM | `litellm/` |
+| VLLM | `vllm/` |
+| Cerebras | `cerebras/` |
+
+See the [complete provider list](/configuration/models#all-supported-vendors) for all supported vendors.
+
+## Automatic Migration
+
+PicoClaw automatically migrates legacy configs at runtime:
+
+```
+[INFO] config: Auto-migrating legacy providers config to model_list
+[INFO] config: Migrated provider: openai → model_list[0]
+[INFO] config: Migrated provider: anthropic → model_list[1]
+```
+
+But you should **manually update your config** for clarity.
+
+## Migration Script
+
+Here's a Python script to help migrate your config:
+
+```python
+import json
+import sys
+
+def migrate_config(old_config):
+    new_config = old_config.copy()
+    
+    # Create model_list from providers
+    if "providers" in old_config:
+        model_list = []
+        
+        for vendor, config in old_config["providers"].items():
+            # Get model name from agents.defaults
+            model_name = old_config.get("agents", {}).get("defaults", {}).get("model", "")
+            
+            entry = {
+                "model_name": model_name,
+                "model": f"{vendor}/{model_name}",
+                "api_key": config.get("api_key", "")
+            }
+            
+            if "api_base" in config:
+                entry["api_base"] = config["api_base"]
+            
+            model_list.append(entry)
+        
+        new_config["model_list"] = model_list
+        del new_config["providers"]
+    
+    # Update agents.defaults
+    if "agents" in new_config and "defaults" in new_config["agents"]:
+        if "provider" in new_config["agents"]["defaults"]:
+            del new_config["agents"]["defaults"]["provider"]
+    
+    return new_config
+
+if __name__ == "__main__":
+    with open("config.json", "r") as f:
+        old_config = json.load(f)
+    
+    new_config = migrate_config(old_config)
+    
+    with open("config.new.json", "w") as f:
+        json.dump(new_config, f, indent=2)
+    
+    print("Migrated config saved to config.new.json")
+```
+
+Usage:
+```bash
+python migrate.py
+# Review config.new.json
+# If looks good: mv config.new.json ~/.picoclaw/config.json
+```
+
+## Testing Your Migration
+
+After migrating, test your config:
+
+```bash
+# Check configuration
+picoclaw status
+
+# Test agent with new config
+picoclaw agent -m "Hello, are you working?"
+
+# Check provider status
+picoclaw auth status
+```
+
+## Breaking Changes
+
+No breaking changes! The legacy format is still supported. However:
+
+- **New features** (load balancing, advanced routing) only work with `model_list`
+- **Deprecation warnings** may appear in logs
+- **Future versions** may remove legacy support entirely
+
+## Benefits of New Format
+
+<CardGroup cols={2}>
+  <Card title="Load balancing" icon="scale-balanced">
+    Configure multiple API keys for the same model
+  </Card>
+  
+  <Card title="Flexible routing" icon="route">
+    Mix models from different providers
+  </Card>
+  
+  <Card title="Clearer config" icon="sparkles">
+    Model-centric instead of provider-centric
+  </Card>
+  
+  <Card title="Custom endpoints" icon="plug">
+    Easier to configure custom API bases
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent not using new config">
+    - Ensure you deleted the `provider` field from `agents.defaults`
+    - Check that `model` in `agents.defaults` matches a `model_name` in `model_list`
+    - Restart PicoClaw after config changes
+  </Accordion>
+
+  <Accordion title="API calls failing after migration">
+    - Verify `api_key` is correctly copied to `model_list`
+    - Check `api_base` if you had a custom endpoint
+    - Run `picoclaw status` to see provider health
+  </Accordion>
+
+  <Accordion title="Deprecation warnings">
+    - These are safe to ignore if everything works
+    - Migrate to `model_list` to remove warnings
+    - Legacy support will be removed in a future version
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Model Configuration" href="/configuration/models" icon="sliders">
+    Complete guide to model_list configuration
+  </Card>
+  
+  <Card title="Load Balancing" href="/advanced/load-balancing" icon="scale-balanced">
+    Use multiple endpoints for high availability
+  </Card>
+  
+  <Card title="Providers" href="/concepts/providers" icon="network-wired">
+    Understand the provider system
+  </Card>
+  
+  <Card title="Troubleshooting" href="/community/troubleshooting" icon="wrench">
+    Common issues and solutions
+  </Card>
+</CardGroup>

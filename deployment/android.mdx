@@ -1,0 +1,279 @@
+---
+title: Android Deployment
+description: Run PicoClaw on Android devices using Termux
+---
+
+## Overview
+
+Give your old Android phone a second life! Turn it into a smart AI Assistant with PicoClaw. This guide shows you how to run PicoClaw on Android using Termux, a powerful terminal emulator.
+
+## Why Run PicoClaw on Android?
+
+- **Repurpose old devices** - Turn decade-old phones into AI assistants
+- **Ultra-lightweight** - Runs with &lt;10MB RAM
+- **Always-on** - Keep your assistant running 24/7
+- **Portable** - Take your AI assistant anywhere
+
+<img src="/assets/termux.jpg" alt="PicoClaw on Android" width="512" />
+
+## Prerequisites
+
+- Android device (ARM64 architecture)
+- Termux app installed
+- Stable internet connection
+
+## Installing Termux
+
+Download Termux from one of these sources:
+
+- **F-Droid** (recommended): [f-droid.org/packages/com.termux](https://f-droid.org/packages/com.termux/)
+- **Google Play**: Search for "Termux"
+
+<Warning>
+Do not install Termux from unofficial sources, as they may contain malware or be outdated.
+</Warning>
+
+## Installation Steps
+
+### 1. Open Termux
+
+Launch the Termux app on your Android device.
+
+### 2. Update Termux Packages
+
+```bash
+pkg update && pkg upgrade
+```
+
+Press `Y` when prompted to confirm updates.
+
+### 3. Install Required Packages
+
+```bash
+pkg install proot wget
+```
+
+### 4. Download PicoClaw
+
+Download the latest ARM64 binary:
+
+```bash
+# Note: Replace v0.1.1 with the latest version from the Releases page
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+```
+
+<Note>
+Check the [Releases page](https://github.com/sipeed/picoclaw/releases) for the latest version number and replace `v0.1.1` accordingly.
+</Note>
+
+### 5. Make the Binary Executable
+
+```bash
+chmod +x picoclaw-linux-arm64
+```
+
+### 6. Run PicoClaw Setup
+
+Use `termux-chroot` to run PicoClaw in a proper Linux environment:
+
+```bash
+termux-chroot ./picoclaw-linux-arm64 onboard
+```
+
+This initializes the configuration and workspace.
+
+### 7. Configure API Keys
+
+Edit the configuration file:
+
+```bash
+nano ~/.picoclaw/config.json
+```
+
+Add your API keys:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key"
+    }
+  ]
+}
+```
+
+Save with `Ctrl+O`, then exit with `Ctrl+X`.
+
+### 8. Test the Installation
+
+Run a test query:
+
+```bash
+termux-chroot ./picoclaw-linux-arm64 agent -m "Hello from Android!"
+```
+
+## Running the Gateway
+
+To enable chat integrations (Telegram, Discord, etc.), run the gateway:
+
+```bash
+termux-chroot ./picoclaw-linux-arm64 gateway
+```
+
+## Configuration Tips
+
+### Get API Keys
+
+- **LLM Provider**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys)
+- **Web Search** (optional): [Tavily](https://tavily.com) (1000 free queries/month) · [Brave Search](https://brave.com/search/api) (2000 free queries/month)
+
+### Configure Telegram Bot
+
+Add Telegram integration to your config:
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "allow_from": ["YOUR_USER_ID"]
+    }
+  }
+}
+```
+
+Get your user ID from `@userinfobot` on Telegram.
+
+## Keeping PicoClaw Running
+
+### Use Termux:Boot
+
+To run PicoClaw automatically on device boot:
+
+1. Install Termux:Boot from F-Droid
+2. Create a boot script:
+
+```bash
+mkdir -p ~/.termux/boot
+nano ~/.termux/boot/start-picoclaw.sh
+```
+
+3. Add this content:
+
+```bash
+#!/data/data/com.termux/files/usr/bin/sh
+termux-chroot /data/data/com.termux/files/home/picoclaw-linux-arm64 gateway
+```
+
+4. Make it executable:
+
+```bash
+chmod +x ~/.termux/boot/start-picoclaw.sh
+```
+
+### Use Termux:Wake Lock
+
+Prevent Android from killing Termux:
+
+1. Install Termux:Wake Lock from F-Droid
+2. Open Termux:Wake Lock and enable it
+3. This keeps Termux running in the background
+
+## Troubleshooting
+
+### Permission Denied Errors
+
+If you get permission errors, use `termux-chroot`:
+
+```bash
+termux-chroot ./picoclaw-linux-arm64 agent
+```
+
+### Network Errors
+
+Ensure you have internet connectivity:
+
+```bash
+ping -c 3 google.com
+```
+
+### App Keeps Closing
+
+- Disable battery optimization for Termux in Android settings
+- Use Termux:Wake Lock to prevent the app from sleeping
+- Keep the device charging for 24/7 operation
+
+### Storage Space
+
+Check available storage:
+
+```bash
+df -h
+```
+
+PicoClaw requires minimal space (&lt;50MB), but ensure you have room for conversation history and logs.
+
+## Performance Tips
+
+### Optimize for Low Memory
+
+Reduce memory usage by lowering `max_tokens`:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "max_tokens": 4096
+    }
+  }
+}
+```
+
+### Monitor Resource Usage
+
+Check PicoClaw's resource usage:
+
+```bash
+top
+```
+
+Press `q` to exit.
+
+## Creating a Shortcut
+
+For easier access, create an alias:
+
+```bash
+echo 'alias picoclaw="termux-chroot ~/picoclaw-linux-arm64"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Now you can run:
+
+```bash
+picoclaw agent -m "Test"
+picoclaw gateway
+```
+
+## Next Steps
+
+- [Configure Chat Apps](/chat-apps) - Connect Telegram, Discord, WhatsApp
+- [Configuration Guide](/configuration) - Customize your deployment
+- [Troubleshooting](/troubleshooting) - Common issues and solutions
+
+## Community Examples
+
+<img src="/assets/termux.jpg" alt="PicoClaw running on Android" width="512" />
+
+Share your Android deployment on our [Discord community](https://discord.gg/V4sAZ9XWpN)!

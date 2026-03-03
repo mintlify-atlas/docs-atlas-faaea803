@@ -1,0 +1,625 @@
+---
+title: Providers
+description: Understanding PicoClaw's LLM provider system and model routing
+---
+
+## Overview
+
+Providers abstract LLM API interactions, enabling PicoClaw to work with multiple AI models and services through a unified interface. The provider system supports automatic fallback, load balancing, and zero-code provider addition.
+
+## Provider Interface
+
+All providers implement the `LLMProvider` interface (`pkg/providers/types.go`):
+
+```go
+type LLMProvider interface {
+    Chat(
+        ctx context.Context,
+        messages []Message,
+        tools []ToolDefinition,
+        model string,
+        options map[string]any,
+    ) (*LLMResponse, error)
+    GetDefaultModel() string
+}
+
+type Message struct {
+    Role             string      // "system", "user", "assistant", "tool"
+    Content          string      // Message content
+    ToolCalls        []ToolCall  // Tool calls (for assistant messages)
+    ToolCallID       string      // Tool call ID (for tool messages)
+    ReasoningContent string      // Reasoning/thoughts
+}
+
+type LLMResponse struct {
+    Content          string      // Response text
+    ToolCalls        []ToolCall  // Requested tool calls
+    Reasoning        string      // Model's reasoning
+    ReasoningContent string      // Extended reasoning
+    Usage            *UsageInfo  // Token usage
+}
+```
+
+## Supported Providers
+
+### HTTP-Compatible Providers
+
+Providers using OpenAI-compatible HTTP API (`pkg/providers/http_provider.go`):
+
+| Provider | Prefix | Default API Base | Notes |
+|----------|--------|------------------|-------|
+| **OpenAI** | `openai/` | `https://api.openai.com/v1` | GPT models |
+| **Anthropic** | `anthropic/` | `https://api.anthropic.com/v1` | Claude (via OpenAI format) |
+| **Zhipu** | `zhipu/` | `https://open.bigmodel.cn/api/paas/v4` | GLM models |
+| **DeepSeek** | `deepseek/` | `https://api.deepseek.com/v1` | DeepSeek models |
+| **Gemini** | `gemini/` | `https://generativelanguage.googleapis.com/v1beta` | Google Gemini |
+| **Groq** | `groq/` | `https://api.groq.com/openai/v1` | Fast inference |
+| **Moonshot** | `moonshot/` | `https://api.moonshot.cn/v1` | Kimi models |
+| **Qwen** | `qwen/` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | Alibaba Qwen |
+| **NVIDIA** | `nvidia/` | `https://integrate.api.nvidia.com/v1` | NVIDIA models |
+| **Ollama** | `ollama/` | `http://localhost:11434/v1` | Local models |
+| **OpenRouter** | `openrouter/` | `https://openrouter.ai/api/v1` | Multi-model proxy |
+| **LiteLLM** | `litellm/` | `http://localhost:4000/v1` | LiteLLM proxy |
+| **VLLM** | `vllm/` | `http://localhost:8000/v1` | vLLM inference |
+| **Cerebras** | `cerebras/` | `https://api.cerebras.ai/v1` | Fast inference |
+
+### Native Providers
+
+#### Claude Provider (`pkg/providers/claude_provider.go`)
+
+Native Anthropic API implementation with:
+- Prompt caching
+- Extended thinking
+- Vision support
+
+#### Codex Provider (`pkg/providers/codex_provider.go`)
+
+OpenAI OAuth/token authentication.
+
+#### GitHub Copilot (`pkg/providers/github_copilot_provider.go`)
+
+gRPC connection to local GitHub Copilot agent.
+
+## Model List Configuration
+
+The modern way to configure providers: zero-code model addition.
+
+### Basic Configuration
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-..."
+    },
+    {
+      "model_name": "claude",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-..."
+    },
+    {
+      "model_name": "glm",
+      "model": "zhipu/glm-4.7",
+      "api_key": "..."
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "gpt4"  // References model_name
+    }
+  }
+}
+```
+
+### Model Entry Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `model_name` | string | Yes | Unique identifier for this model |
+| `model` | string | Yes | Full model ID with vendor prefix |
+| `api_key` | string | No* | API key (*required for most providers) |
+| `api_base` | string | No | Override default API base |
+| `request_timeout` | int | No | Timeout in seconds (default: 120) |
+
+### Provider Auto-Detection
+
+Providers are automatically selected based on model prefix:
+
+```
+openai/gpt-5.2       → OpenAI provider
+anthropic/claude-*   → Anthropic provider
+zhipu/glm-*          → Zhipu provider
+ollama/llama3        → Ollama provider (no API key needed)
+litellm/custom       → LiteLLM proxy
+```
+
+### Custom API Base
+
+Override default endpoints:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "custom-gpt",
+      "model": "openai/gpt-5.2",
+      "api_base": "https://my-proxy.com/v1",
+      "api_key": "sk-..."
+    }
+  ]
+}
+```
+
+### Request Timeout
+
+Set per-model timeout:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "slow-model",
+      "model": "anthropic/claude-opus-4",
+      "api_key": "sk-ant-...",
+      "request_timeout": 300  // 5 minutes
+    }
+  ]
+}
+```
+
+## Load Balancing
+
+Multiple entries with same `model_name` enable round-robin load balancing:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_base": "https://api1.example.com/v1",
+      "api_key": "key1"
+    },
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_base": "https://api2.example.com/v1",
+      "api_key": "key2"
+    }
+  ]
+}
+```
+
+**Behavior:**
+- Requests alternate between endpoints
+- Reduces single-endpoint rate limits
+- Improves availability
+
+## Fallback Chain
+
+Automatic failover when primary model fails.
+
+### Configuration
+
+**Method 1: Model-specific**
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "gpt4",
+      "model_fallbacks": ["claude", "glm"]
+    }
+  }
+}
+```
+
+**Method 2: Agent-specific**
+
+```json
+{
+  "agents": {
+    "agents": [
+      {
+        "id": "main",
+        "model": {
+          "primary": "gpt4",
+          "fallbacks": ["claude", "glm"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### Fallback Execution
+
+Implemented in `pkg/providers/fallback.go`:
+
+```
+Try primary model
+  │
+  ├─ Success → Return response
+  │
+  └─ Failure → Classify error
+        │
+        ├─ Retriable? (auth, rate_limit, timeout, billing, overloaded)
+        │   │
+        │   └─ Try next fallback
+        │
+        └─ Non-retriable? (format error)
+            │
+            └─ Return error immediately
+```
+
+### Error Classification
+
+Defined in `pkg/providers/error_classifier.go`:
+
+| Reason | Retry? | Examples |
+|--------|--------|----------|
+| `auth` | Yes | Invalid API key, expired token |
+| `rate_limit` | Yes (with cooldown) | 429 Too Many Requests |
+| `billing` | Yes | Insufficient credits, quota exceeded |
+| `timeout` | Yes | Network timeout, deadline exceeded |
+| `overloaded` | Yes | 503 Service Unavailable |
+| `format` | No | Invalid image size, unsupported content |
+| `unknown` | Yes | Other errors |
+
+### Cooldown Tracking
+
+Prevents rapid retries after rate limit:
+
+```go
+type CooldownTracker struct {
+    cooldowns map[string]time.Time  // provider:model → cooldown until
+}
+
+// Returns true if provider is in cooldown
+func (ct *CooldownTracker) IsInCooldown(provider, model string) bool
+
+// Sets cooldown period
+func (ct *CooldownTracker) SetCooldown(provider, model string, duration time.Duration)
+```
+
+**Default cooldown**: 60 seconds for rate limits
+
+## Legacy Provider Configuration
+
+Deprecated but still supported for backward compatibility.
+
+### Legacy Format
+
+```json
+{
+  "providers": {
+    "zhipu": {
+      "api_key": "your-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    },
+    "anthropic": {
+      "api_key": "sk-ant-..."
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "zhipu",
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+### Migration to model_list
+
+**Before:**
+```json
+{
+  "providers": {
+    "zhipu": {
+      "api_key": "key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "zhipu",
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+**After:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+## Provider Selection Logic
+
+Implemented in `pkg/providers/factory.go`:
+
+```
+1. Check for explicit provider in config
+   │
+   ├─ Found → Use configured provider
+   │
+   └─ Not found → Infer from model name
+       │
+       ├─ Model prefix (openai/, anthropic/, etc.)
+       │
+       ├─ Model name contains keywords (gpt, claude, etc.)
+       │
+       └─ Fallback to OpenRouter if configured
+```
+
+### Provider Resolution Examples
+
+```
+Model: "gpt-5.2"
+Config: providers.openai.api_key set
+Result: OpenAI provider
+
+Model: "anthropic/claude-sonnet-4.6"
+Config: providers.anthropic.api_key set
+Result: Anthropic provider
+
+Model: "custom-model"
+Config: providers.openrouter.api_key set
+Result: OpenRouter provider
+
+Model: "ollama/llama3"
+Config: providers.ollama.api_base = "http://localhost:11434/v1"
+Result: Ollama provider (no API key needed)
+```
+
+## Special Providers
+
+### OpenRouter
+
+Universal model router supporting all major providers:
+
+```json
+{
+  "providers": {
+    "openrouter": {
+      "api_key": "sk-or-v1-..."
+    }
+  }
+}
+```
+
+**Supports:**
+- OpenAI (GPT-4, GPT-3.5, etc.)
+- Anthropic (Claude)
+- Google (Gemini)
+- Meta (Llama)
+- And 100+ other models
+
+### LiteLLM Proxy
+
+Connect to LiteLLM proxy for unified model access:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "proxy-gpt4",
+      "model": "litellm/gpt-4",
+      "api_base": "http://localhost:4000/v1",
+      "api_key": "sk-..."
+    }
+  ]
+}
+```
+
+**Note**: PicoClaw only strips the `litellm/` prefix. The rest is passed to the proxy.
+
+### Ollama (Local)
+
+Run models locally:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "llama3",
+      "model": "ollama/llama3",
+      "api_base": "http://localhost:11434/v1"
+    }
+  ]
+}
+```
+
+**No API key required** for local Ollama.
+
+### GitHub Copilot
+
+Connect to local GitHub Copilot agent:
+
+```json
+{
+  "providers": {
+    "github_copilot": {
+      "api_base": "localhost:4321",
+      "connect_mode": "grpc"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "github_copilot",
+      "model": "gpt-4o"
+    }
+  }
+}
+```
+
+## Model Routing Patterns
+
+### Pattern 1: Single Provider
+
+Simplest setup:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "main",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-..."
+    }
+  ],
+  "agents": {
+    "defaults": {"model": "main"}
+  }
+}
+```
+
+### Pattern 2: Multi-Provider Fallback
+
+Automatic failover:
+
+```json
+{
+  "model_list": [
+    {"model_name": "gpt4", "model": "openai/gpt-5.2", "api_key": "sk-1"},
+    {"model_name": "claude", "model": "anthropic/claude-sonnet-4.6", "api_key": "sk-2"},
+    {"model_name": "glm", "model": "zhipu/glm-4.7", "api_key": "sk-3"}
+  ],
+  "agents": {
+    "defaults": {
+      "model": "gpt4",
+      "model_fallbacks": ["claude", "glm"]
+    }
+  }
+}
+```
+
+### Pattern 3: Load Balanced Primary
+
+Distribute load across endpoints:
+
+```json
+{
+  "model_list": [
+    {"model_name": "gpt4", "model": "openai/gpt-5.2", "api_base": "https://api1.com/v1", "api_key": "k1"},
+    {"model_name": "gpt4", "model": "openai/gpt-5.2", "api_base": "https://api2.com/v1", "api_key": "k2"},
+    {"model_name": "claude", "model": "anthropic/claude-sonnet-4.6", "api_key": "sk-ant"}
+  ],
+  "agents": {
+    "defaults": {
+      "model": "gpt4",
+      "model_fallbacks": ["claude"]
+    }
+  }
+}
+```
+
+### Pattern 4: Per-Agent Models
+
+Different models for different agents:
+
+```json
+{
+  "model_list": [
+    {"model_name": "fast", "model": "groq/llama-3.1-70b", "api_key": "gsk-"},
+    {"model_name": "smart", "model": "anthropic/claude-sonnet-4.6", "api_key": "sk-ant"},
+    {"model_name": "cheap", "model": "gemini/gemini-2.0", "api_key": "AIza"}
+  ],
+  "agents": {
+    "defaults": {"model": "fast"},
+    "agents": [
+      {"id": "main", "model": {"primary": "fast"}},
+      {"id": "researcher", "model": {"primary": "smart"}},
+      {"id": "cron", "model": {"primary": "cheap"}}
+    ]
+  }
+}
+```
+
+## Best Practices
+
+### 1. Always Configure Fallbacks
+
+Ensure reliability:
+
+```json
+{
+  "model_fallbacks": ["provider2", "provider3"]
+}
+```
+
+### 2. Use OpenRouter for Flexibility
+
+Single API key for all models:
+
+```json
+{
+  "providers": {
+    "openrouter": {"api_key": "sk-or-..."}
+  }
+}
+```
+
+### 3. Set Appropriate Timeouts
+
+Longer timeouts for complex tasks:
+
+```json
+{
+  "request_timeout": 300  // 5 minutes
+}
+```
+
+### 4. Monitor Rate Limits
+
+Use load balancing for high-volume:
+
+```json
+{
+  "model_list": [
+    {"model_name": "gpt4", "api_key": "key1"},
+    {"model_name": "gpt4", "api_key": "key2"}
+  ]
+}
+```
+
+### 5. Local Development
+
+Use Ollama for free testing:
+
+```json
+{
+  "model_list": [
+    {"model_name": "local", "model": "ollama/llama3"}
+  ]
+}
+```
+
+### 6. Cost Optimization
+
+Cheap models for simple tasks, expensive for complex:
+
+```json
+{
+  "agents": [
+    {"id": "cron", "model": {"primary": "gemini-flash"}},
+    {"id": "main", "model": {"primary": "gpt4"}}
+  ]
+}
+```

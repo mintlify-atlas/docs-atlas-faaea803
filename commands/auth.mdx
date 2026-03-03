@@ -1,0 +1,511 @@
+---
+title: 'picoclaw auth'
+description: 'Manage authentication with AI providers (OAuth and tokens)'
+---
+
+## Overview
+
+The `auth` command manages authentication with AI providers, supporting both OAuth flows and direct token authentication. It handles login, logout, status checking, and model listing for OAuth providers.
+
+## Usage
+
+```bash
+picoclaw auth [subcommand] [flags]
+```
+
+## Subcommands
+
+### login
+
+Authenticate with a provider using OAuth or token.
+
+```bash
+picoclaw auth login [flags]
+```
+
+#### Flags
+
+<ParamField path="-p, --provider" type="string" required>
+  Provider to authenticate with.
+  
+  Supported providers:
+  - `openai` - OpenAI (OAuth or token)
+  - `anthropic` - Anthropic (token only)
+  - `google-antigravity` (or `antigravity`) - Google Cloud Code Assist (OAuth)
+  
+  ```bash
+  picoclaw auth login --provider openai
+  ```
+</ParamField>
+
+<ParamField path="--device-code" type="boolean" default="false">
+  Use device code flow for OAuth (for headless/SSH environments).
+  
+  Only applicable for OAuth providers (OpenAI, Google Antigravity).
+  
+  ```bash
+  picoclaw auth login --provider openai --device-code
+  ```
+</ParamField>
+
+### logout
+
+Remove stored credentials for one or all providers.
+
+```bash
+picoclaw auth logout [flags]
+```
+
+#### Flags
+
+<ParamField path="-p, --provider" type="string">
+  Provider to logout from. If omitted, logs out from all providers.
+  
+  ```bash
+  # Logout from specific provider
+  picoclaw auth logout --provider openai
+  
+  # Logout from all providers
+  picoclaw auth logout
+  ```
+</ParamField>
+
+### status
+
+Show authentication status for all providers.
+
+```bash
+picoclaw auth status
+```
+
+Displays:
+- Authenticated providers
+- Authentication method (oauth/token)
+- Status (active/expired/needs refresh)
+- Account details (email, account ID, project)
+- Expiration times
+
+### models
+
+Show available models for Google Antigravity.
+
+```bash
+picoclaw auth models
+```
+
+Lists all models available in your Cloud Code Assist project, including:
+- Model ID
+- Display name
+- Quota status
+
+**Note**: Currently only supported for Google Antigravity provider.
+
+## Provider-Specific Flows
+
+### OpenAI (OAuth)
+
+```bash
+picoclaw auth login --provider openai
+```
+
+**Flow:**
+1. Opens browser for OAuth authentication
+2. Log in with OpenAI account
+3. Grant permissions
+4. Credentials stored automatically
+5. Config updated to use OAuth
+6. Default model set to `gpt-5.2`
+
+**Output:**
+```
+Opening browser for authentication...
+✓ Login successful!
+Account: user@openai.com
+Default model set to: gpt-5.2
+```
+
+**Headless/SSH Environments:**
+
+```bash
+picoclaw auth login --provider openai --device-code
+```
+
+**Output:**
+```
+To authenticate, visit: https://auth.openai.com/activate
+Enter code: ABCD-EFGH
+Waiting for authentication...
+✓ Login successful!
+```
+
+### Anthropic (Token)
+
+```bash
+picoclaw auth login --provider anthropic
+```
+
+**Flow:**
+1. Prompts for API key
+2. You paste your Anthropic API key
+3. Credentials stored securely
+4. Config updated
+5. Default model set to `claude-sonnet-4.6`
+
+**Output:**
+```
+Enter your Anthropic API key: sk-ant-...
+✓ Token saved for anthropic!
+Default model set to: claude-sonnet-4.6
+```
+
+**Get API Key**: https://console.anthropic.com/settings/keys
+
+### Google Antigravity (OAuth)
+
+```bash
+picoclaw auth login --provider google-antigravity
+```
+
+**Flow:**
+1. Opens browser for Google OAuth
+2. Select Google account
+3. Grant Cloud Code Assist permissions
+4. Fetches project ID automatically
+5. Stores credentials
+6. Config updated
+7. Default model set to `gemini-flash`
+
+**Output:**
+```
+Opening browser for authentication...
+Email: user@gmail.com
+Project: my-project-123456
+
+✓ Google Antigravity login successful!
+Default model set to: gemini-flash
+Try it: picoclaw agent -m "Hello world"
+```
+
+**Requirements:**
+- Google Cloud project with Code Assist enabled
+- Billing enabled (free tier available)
+
+## Examples
+
+### Login to OpenAI
+
+```bash
+picoclaw auth login --provider openai
+```
+
+Browser opens, authenticate, then:
+
+```bash
+picoclaw agent -m "Hello!"
+```
+
+### Login to Anthropic with Token
+
+```bash
+picoclaw auth login --provider anthropic
+# Paste API key when prompted
+```
+
+### Login to Google Antigravity
+
+```bash
+picoclaw auth login --provider google-antigravity
+```
+
+### Headless Server Login
+
+For SSH sessions without browser access:
+
+```bash
+picoclaw auth login --provider openai --device-code
+```
+
+**Output:**
+```
+To authenticate, visit: https://auth.openai.com/activate
+Enter code: WXYZ-1234
+
+(On your local machine, open the URL and enter the code)
+```
+
+### Check Authentication Status
+
+```bash
+picoclaw auth status
+```
+
+**Output:**
+```
+Authenticated Providers:
+------------------------
+  openai:
+    Method: oauth
+    Status: active
+    Account: user@openai.com
+    Expires: 2026-04-03 12:00
+  
+  anthropic:
+    Method: token
+    Status: active
+  
+  google-antigravity:
+    Method: oauth
+    Status: active
+    Email: user@gmail.com
+    Project: my-project-123
+    Expires: 2026-03-03 18:00
+```
+
+### List Available Models (Antigravity)
+
+```bash
+picoclaw auth login --provider google-antigravity
+picoclaw auth models
+```
+
+**Output:**
+```
+Fetching models for project: my-project-123
+
+Available Antigravity Models:
+-----------------------------
+  ✓ gemini-3-flash (Gemini 3.0 Flash)
+  ✓ gemini-3-pro (Gemini 3.0 Pro)
+  ✓ claude-5.6-sonnet (Claude Sonnet 5.6)
+  ✗ gpt-4o (quota exhausted)
+```
+
+### Logout from Specific Provider
+
+```bash
+picoclaw auth logout --provider openai
+```
+
+**Output:**
+```
+✓ Logged out from openai
+```
+
+### Logout from All Providers
+
+```bash
+picoclaw auth logout
+```
+
+**Output:**
+```
+✓ Logged out from all providers
+```
+
+## Authentication Storage
+
+Credentials are stored securely in:
+
+```
+~/.config/picoclaw/auth.json
+```
+
+This file contains:
+- OAuth access tokens and refresh tokens
+- Pasted API tokens
+- Expiration times
+- Account metadata
+
+**Security Notes:**
+- File permissions are set to `0600` (user read/write only)
+- Tokens are stored in plaintext (secure file permissions)
+- Refresh tokens enable automatic token renewal
+- OAuth tokens expire and are automatically refreshed
+
+## OAuth Token Lifecycle
+
+### Active
+Token is valid and ready to use.
+
+### Needs Refresh
+Token is expiring soon. PicoClaw will automatically refresh it on next use.
+
+### Expired
+Token has expired. Need to re-authenticate:
+
+```bash
+picoclaw auth login --provider <provider>
+```
+
+### Automatic Refresh
+
+OAuth tokens are automatically refreshed when:
+- Token expires within refresh window
+- Refresh token is available
+- Next API call is made
+
+No manual intervention required for active sessions.
+
+## Configuration Updates
+
+When logging in, `config.yaml` is automatically updated:
+
+### OpenAI Login
+
+```yaml
+providers:
+  openai:
+    auth_method: oauth  # Added
+
+model_list:
+  - model_name: gpt-5.2
+    model: openai/gpt-5.2
+    auth_method: oauth  # Added
+
+agents:
+  defaults:
+    model_name: gpt-5.2  # Updated
+```
+
+### Anthropic Login
+
+```yaml
+providers:
+  anthropic:
+    auth_method: token  # Added
+
+model_list:
+  - model_name: claude-sonnet-4.6
+    model: anthropic/claude-sonnet-4.6
+    auth_method: token  # Added
+
+agents:
+  defaults:
+    model_name: claude-sonnet-4.6  # Updated
+```
+
+## Troubleshooting
+
+### Browser Won't Open
+
+**Problem**: OAuth browser window doesn't open
+
+**Solution**: Use device code flow:
+```bash
+picoclaw auth login --provider openai --device-code
+```
+
+### OAuth Permission Denied
+
+**Problem**: "Access denied" during OAuth flow
+
+**Solution**: 
+1. Check you're using the correct Google/OpenAI account
+2. Ensure account has necessary permissions
+3. For Antigravity, verify Cloud Code Assist is enabled
+
+### Token Invalid
+
+**Problem**: "Invalid credentials" error
+
+**Solution**: Re-login:
+```bash
+picoclaw auth login --provider <provider>
+```
+
+### Expired OAuth Token
+
+**Problem**: "Token expired" error
+
+**Check status:**
+```bash
+picoclaw auth status
+```
+
+**Solution**: Re-authenticate:
+```bash
+picoclaw auth login --provider <provider>
+```
+
+### Cannot Fetch Models
+
+**Problem**: `picoclaw auth models` fails
+
+**Solution**:
+1. Verify logged in: `picoclaw auth status`
+2. Check project has Code Assist enabled
+3. Verify billing is enabled
+4. Re-login if token expired
+
+### Config Not Updated
+
+**Problem**: Login succeeds but config unchanged
+
+**Solution**: Check file permissions:
+```bash
+ls -la ~/.config/picoclaw/config.yaml
+chmod 644 ~/.config/picoclaw/config.yaml
+```
+
+## Manual Token Configuration
+
+Alternatively, you can manually add API keys to `config.yaml`:
+
+```yaml
+providers:
+  openai:
+    api_key: "sk-..."
+  
+  anthropic:
+    api_key: "sk-ant-..."
+  
+  openrouter:
+    api_key: "sk-or-v1-..."
+```
+
+This bypasses OAuth but requires manual key management.
+
+## Provider Comparison
+
+| Provider | Auth Method | Browser Required | Headless Support | Auto-Refresh |
+|----------|-------------|------------------|------------------|-------------|
+| OpenAI | OAuth | Yes (or device code) | Yes (device code) | Yes |
+| Anthropic | Token | No | Yes | N/A |
+| Google Antigravity | OAuth | Yes | No | Yes |
+
+## Security Best Practices
+
+1. **Logout When Done**: On shared machines, logout after use
+   ```bash
+   picoclaw auth logout
+   ```
+
+2. **Protect Auth File**: Ensure proper permissions
+   ```bash
+   chmod 600 ~/.config/picoclaw/auth.json
+   ```
+
+3. **Rotate Tokens**: Periodically re-authenticate
+   ```bash
+   picoclaw auth logout --provider <provider>
+   picoclaw auth login --provider <provider>
+   ```
+
+4. **Monitor Usage**: Check auth status regularly
+   ```bash
+   picoclaw auth status
+   ```
+
+## Exit Codes
+
+- `0`: Success
+- `1`: Error (invalid provider, authentication failed, network error)
+
+## See Also
+
+- [picoclaw status](/commands/status) - Check authentication status
+- [picoclaw onboard](/commands/onboard) - Initial setup
+- [Provider Configuration](/providers) - Provider-specific setup guides
+- [OpenAI OAuth Setup](https://platform.openai.com/docs/guides/oauth)
+- [Anthropic API Keys](https://console.anthropic.com/settings/keys)
+- [Google Cloud Code Assist](https://cloud.google.com/code/docs)

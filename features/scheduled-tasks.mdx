@@ -1,0 +1,475 @@
+---
+title: Scheduled Tasks (Cron)
+description: Schedule one-time reminders and recurring tasks with cron expressions
+---
+
+PicoClaw's cron tool allows the agent to schedule reminders, recurring tasks, and automated commands. This is perfect for time-based reminders, periodic checks, and scheduled automation.
+
+## Overview
+
+The cron system supports:
+
+- **One-time reminders** - "Remind me in 10 minutes"
+- **Recurring tasks** - "Remind me every 2 hours"  
+- **Complex schedules** - "Remind me at 9am daily" (cron expressions)
+- **Command execution** - Run shell commands on schedule
+
+## Tool Usage
+
+The agent uses the `cron` tool automatically when you ask for reminders or scheduled tasks.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | Action to perform: `add`, `list`, `remove`, `enable`, `disable` |
+| `message` | string | For add | The reminder/task message to display |
+| `command` | string | Optional | Shell command to execute |
+| `at_seconds` | integer | Optional | One-time: seconds from now (e.g., 600 for 10 minutes) |
+| `every_seconds` | integer | Optional | Recurring: interval in seconds (e.g., 3600 for hourly) |
+| `cron_expr` | string | Optional | Cron expression for complex schedules |
+| `job_id` | string | For remove/enable/disable | Job ID to operate on |
+| `deliver` | boolean | Optional | If true, send message directly; if false, let agent process (default: true) |
+
+## Usage Examples
+
+### One-time Reminders
+
+**User:** "Remind me in 10 minutes to check the server"
+
+Agent calls:
+```json
+{
+  "action": "add",
+  "message": "Check the server",
+  "at_seconds": 600
+}
+```
+
+**User:** "Remind me in 1 hour to start the meeting"
+
+Agent calls:
+```json
+{
+  "action": "add",
+  "message": "Start the meeting",
+  "at_seconds": 3600
+}
+```
+
+### Recurring Tasks
+
+**User:** "Remind me every 2 hours to take a break"
+
+Agent calls:
+```json
+{
+  "action": "add",
+  "message": "Take a break",
+  "every_seconds": 7200
+}
+```
+
+**User:** "Check disk space every 30 minutes"
+
+Agent calls:
+```json
+{
+  "action": "add",
+  "message": "Check disk space",
+  "every_seconds": 1800
+}
+```
+
+### Cron Expressions
+
+**User:** "Remind me to review emails at 9am every weekday"
+
+Agent calls:
+```json
+{
+  "action": "add",
+  "message": "Review emails",
+  "cron_expr": "0 9 * * 1-5"
+}
+```
+
+**User:** "Run backup at midnight daily"
+
+Agent calls:
+```json
+{
+  "action": "add",  
+  "message": "Daily backup",
+  "cron_expr": "0 0 * * *"
+}
+```
+
+### Command Execution
+
+**User:** "Check disk usage every hour"
+
+Agent calls:
+```json
+{
+  "action": "add",
+  "message": "Check disk usage",
+  "command": "df -h",
+  "every_seconds": 3600
+}
+```
+
+When triggered, the agent executes `df -h` and reports output.
+
+### Managing Jobs
+
+**List all jobs:**
+```bash
+picoclaw agent -m "List all my reminders"
+```
+
+Agent calls:
+```json
+{
+  "action": "list"
+}
+```
+
+**Remove a job:**
+```bash
+picoclaw agent -m "Remove the disk space check"
+```
+
+Agent calls:
+```json
+{
+  "action": "remove",
+  "job_id": "abc123"
+}
+```
+
+**Disable a job:**
+```bash
+picoclaw agent -m "Disable the hourly reminder"
+```
+
+Agent calls:
+```json
+{
+  "action": "disable",
+  "job_id": "xyz789"
+}
+```
+
+## Cron Expression Format
+
+Cron expressions use the standard 5-field format:
+
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday=0)
+│ │ │ │ │
+* * * * *
+```
+
+### Common Examples
+
+| Expression | Description |
+|------------|-------------|
+| `0 9 * * *` | Daily at 9:00 AM |
+| `0 */2 * * *` | Every 2 hours |
+| `30 8 * * 1-5` | Weekdays at 8:30 AM |
+| `0 0 1 * *` | First day of each month at midnight |
+| `0 12 * * 6` | Every Saturday at noon |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 0,12 * * *` | Twice a day (midnight and noon) |
+| `0 9 * * 1` | Every Monday at 9 AM |
+
+### Special Characters
+
+- `*` - Any value
+- `,` - Value list (e.g., `1,15` for 1st and 15th)
+- `-` - Range (e.g., `1-5` for Monday-Friday)
+- `/` - Step values (e.g., `*/15` for every 15 minutes)
+
+## CLI Commands
+
+You can also manage cron jobs via CLI:
+
+### List Jobs
+
+```bash
+picoclaw cron list
+```
+
+Output:
+```
+Scheduled jobs:
+- Check disk usage (id: abc123, every 3600s)
+- Daily backup (id: def456, cron: 0 0 * * *)
+- Meeting reminder (id: ghi789, one-time)
+```
+
+### Add Job via CLI
+
+```bash
+# One-time reminder
+picoclaw cron add "Take a break" --at 600
+
+# Recurring task
+picoclaw cron add "Check server" --every 3600
+
+# Cron expression
+picoclaw cron add "Daily report" --cron "0 9 * * *"
+```
+
+## Storage
+
+Cron jobs are stored in your workspace:
+
+```
+~/.picoclaw/workspace/cron/
+├── jobs.json         # Job definitions
+└── state.json        # Execution state
+```
+
+### Job Format
+
+```json
+{
+  "id": "abc123",
+  "name": "Check disk usage",
+  "schedule": {
+    "kind": "every",
+    "every_ms": 3600000
+  },
+  "payload": {
+    "message": "Check disk usage",
+    "command": "df -h",
+    "deliver": false,
+    "channel": "telegram",
+    "to": "123456789"
+  },
+  "enabled": true,
+  "created_at": 1709856000000
+}
+```
+
+## Configuration
+
+Configure execution timeout in `~/.picoclaw/config.json`:
+
+```json
+{
+  "tools": {
+    "cron": {
+      "exec_timeout_minutes": 5
+    }
+  }
+}
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `exec_timeout_minutes` | integer | `5` | Command execution timeout (0 = no timeout) |
+
+## How It Works
+
+### Schedule Types
+
+The cron service supports three schedule types:
+
+#### 1. At (One-time)
+
+Triggers once at a specific Unix timestamp:
+
+```json
+{
+  "kind": "at",
+  "at_ms": 1709856000000
+}
+```
+
+#### 2. Every (Recurring Interval)
+
+Triggers at regular intervals:
+
+```json
+{
+  "kind": "every",
+  "every_ms": 3600000
+}
+```
+
+#### 3. Cron (Expression-based)
+
+Triggers based on cron expression:
+
+```json
+{
+  "kind": "cron",
+  "expr": "0 9 * * *"
+}
+```
+
+### Execution Flow
+
+```
+Schedule triggers
+    ↓
+Cron service calls CronTool.ExecuteJob()
+    ↓
+Check payload type:
+├─ Command? → Execute via exec tool → Report output
+├─ Deliver=true? → Send message directly to channel
+└─ Deliver=false? → Process through agent → Agent responds
+```
+
+### Command Execution
+
+When a job has a `command` field:
+
+1. Command executed via `ExecTool` (respects workspace restrictions)
+2. Output captured
+3. Result sent to channel/chat specified in job
+4. Execution timeout enforced (default: 5 minutes)
+
+### Delivery Modes
+
+**Direct delivery** (`deliver: true`):
+- Message sent directly to channel
+- No agent processing
+- Fast and simple
+
+**Agent processing** (`deliver: false`):
+- Message processed by agent
+- Agent can use tools, access context
+- For complex tasks requiring decision-making
+
+## Session Context
+
+When creating jobs, the cron tool captures current session context:
+
+- **Channel**: Where the job was created (telegram, discord, cli, etc.)
+- **Chat ID**: Which chat/user requested the job
+
+This ensures notifications go to the right place:
+
+```
+User (Telegram: 123456789): "Remind me in 1 hour"
+                                ↓
+                  Job created with context:
+                  - channel: telegram
+                  - chat_id: 123456789
+                                ↓
+                  1 hour later → Reminder sent to:
+                  - Telegram chat 123456789 ✅
+```
+
+## Best Practices
+
+### Choosing Schedule Type
+
+✅ **Use `at_seconds` for:**
+- One-time reminders
+- Temporary schedules
+- Countdown timers
+
+✅ **Use `every_seconds` for:**
+- Simple recurring tasks
+- Regular intervals
+- Monitoring checks
+
+✅ **Use `cron_expr` for:**
+- Specific times ("9am daily")
+- Complex schedules ("weekdays only")
+- Calendar-based triggers
+
+### Performance Considerations
+
+- Avoid very frequent jobs (< 1 minute intervals)
+- Use `deliver: true` for simple notifications
+- Keep command execution under timeout limit
+- Consider using heartbeat for background tasks instead
+
+### Security
+
+Commands execute with same restrictions as agent:
+
+- Respects `restrict_to_workspace` setting
+- Blocked dangerous commands (rm -rf, etc.)
+- Timeout enforcement prevents runaway processes
+
+## Troubleshooting
+
+### Job Not Triggering
+
+1. **Check job is enabled:**
+```bash
+picoclaw cron list
+```
+
+2. **Verify schedule:**
+   - For `at_seconds`: Check time is in future
+   - For `every_seconds`: Ensure interval is reasonable
+   - For `cron_expr`: Validate expression format
+
+3. **Check logs:**
+```bash
+picoclaw gateway 2>&1 | grep cron
+```
+
+### Command Not Executing
+
+1. **Verify command field is set:**
+   - Commands must have `command` field in payload
+   - `deliver` is automatically set to false for commands
+
+2. **Check timeout:**
+   - Default: 5 minutes
+   - Increase if command takes longer
+
+3. **Verify workspace restrictions:**
+   - Command paths must be within workspace if restricted
+   - Check `restrict_to_workspace` setting
+
+### Wrong Delivery Channel
+
+1. **Check session context:**
+   - Jobs remember channel/chat where created
+   - Create new job from correct channel
+
+2. **Manual override:**
+   - Edit job file manually if needed
+   - Located in `~/.picoclaw/workspace/cron/`
+
+## Differences from Heartbeat
+
+| Feature | Cron | Heartbeat |
+|---------|------|----------|
+| **Trigger** | Time-based schedules | Fixed interval |
+| **Configuration** | Dynamic via tool calls | Static HEARTBEAT.md file |
+| **Use Case** | Specific reminders & tasks | Background monitoring |
+| **Precision** | Exact times/intervals | Approximate interval |
+| **Management** | Add/remove via commands | Edit markdown file |
+
+**Choose cron for:**
+- Specific time-based reminders
+- One-time notifications
+- User-requested schedules
+
+**Choose heartbeat for:**
+- Continuous background monitoring
+- Regular health checks
+- Automated maintenance tasks
+
+## Related Features
+
+- [Heartbeat](/features/heartbeat) - Periodic background tasks
+- [Spawn Tool](/features/spawn) - Async subagent execution
+- [Exec Tool](/tools/exec) - Command execution

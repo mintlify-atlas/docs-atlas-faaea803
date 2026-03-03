@@ -1,0 +1,262 @@
+---
+title: OpenAI Provider
+description: Configure and use OpenAI models (GPT-4, GPT-5, etc.) with PicoClaw
+---
+
+## Overview
+
+The OpenAI provider enables access to OpenAI's language models including GPT-4, GPT-5, and other OpenAI-compatible models. PicoClaw uses the OpenAI-compatible HTTP protocol for communication.
+
+## Configuration
+
+### Model List Format
+
+Add OpenAI models to your `model_list` configuration:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-your-openai-key",
+      "api_base": "https://api.openai.com/v1",
+      "request_timeout": 300
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "gpt4"
+    }
+  }
+}
+```
+
+### Configuration Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `model_name` | string | Yes | - | Alias for this model configuration |
+| `model` | string | Yes | - | Model identifier with `openai/` prefix |
+| `api_key` | string | Yes | - | Your OpenAI API key |
+| `api_base` | string | No | `https://api.openai.com/v1` | API endpoint URL |
+| `request_timeout` | integer | No | 120 | Request timeout in seconds |
+
+## Available Models
+
+OpenAI provides several model families:
+
+### GPT-5 Series
+- `openai/gpt-5.2` - Latest GPT-5 model
+- `openai/gpt-5` - GPT-5 base model
+
+### GPT-4 Series
+- `openai/gpt-4o` - GPT-4 Optimized
+- `openai/gpt-4-turbo` - GPT-4 Turbo
+- `openai/gpt-4` - GPT-4 base model
+
+### Reasoning Models
+- `openai/o1` - Reasoning-focused model
+- `openai/o1-mini` - Compact reasoning model
+
+<Note>
+Reasoning models (o1 series) use `max_completion_tokens` instead of `max_tokens`. PicoClaw handles this automatically.
+</Note>
+
+## Setup Instructions
+
+### 1. Get API Key
+
+1. Visit [OpenAI Platform](https://platform.openai.com)
+2. Sign in or create an account
+3. Navigate to **API Keys** section
+4. Click **Create new secret key**
+5. Copy your API key (starts with `sk-`)
+
+### 2. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-your-actual-key-here"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  }
+}
+```
+
+### 3. Test Connection
+
+```bash
+picoclaw agent -m "Hello, test my OpenAI connection"
+```
+
+## Advanced Configuration
+
+### Custom API Endpoint
+
+Use a custom OpenAI-compatible endpoint:
+
+```json
+{
+  "model_name": "custom-gpt",
+  "model": "openai/custom-model",
+  "api_base": "https://my-proxy.com/v1",
+  "api_key": "sk-...",
+  "request_timeout": 300
+}
+```
+
+### Load Balancing
+
+Configure multiple endpoints for automatic load balancing:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-key1",
+      "api_base": "https://api1.example.com/v1"
+    },
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-key2",
+      "api_base": "https://api2.example.com/v1"
+    }
+  ]
+}
+```
+
+PicoClaw automatically round-robins between endpoints with the same `model_name`.
+
+### Web Search (GPT Models)
+
+Enable web search capabilities for OpenAI models:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-...",
+      "web_search": true
+    }
+  }
+}
+```
+
+### Prompt Caching
+
+OpenAI supports prompt caching to reduce costs and latency. PicoClaw automatically enables this with a stable cache key per agent:
+
+```json
+{
+  "model_name": "gpt4",
+  "model": "openai/gpt-5.2",
+  "api_key": "sk-..."
+}
+```
+
+No additional configuration needed - PicoClaw passes `prompt_cache_key` automatically.
+
+## Authentication Methods
+
+### API Key (Recommended)
+
+Standard API key authentication:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-your-key"
+    }
+  ]
+}
+```
+
+### OAuth / Token (Advanced)
+
+For OAuth-based authentication:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "auth_method": "oauth"
+    }
+  }
+}
+```
+
+Then authenticate:
+
+```bash
+picoclaw auth login --provider openai
+```
+
+## Troubleshooting
+
+### Rate Limiting
+
+If you encounter rate limits:
+- Upgrade your OpenAI plan
+- Configure load balancing across multiple API keys
+- Add retry logic with backoff
+
+### Invalid API Key
+
+Error: `401 Unauthorized`
+- Verify your API key is correct
+- Check key hasn't been revoked
+- Ensure sufficient credits in your account
+
+### Timeout Errors
+
+Increase timeout for long-running requests:
+
+```json
+{
+  "model_name": "gpt4",
+  "model": "openai/gpt-5.2",
+  "api_key": "sk-...",
+  "request_timeout": 600
+}
+```
+
+## Model Selection Guide
+
+| Use Case | Recommended Model | Notes |
+|----------|-------------------|-------|
+| General tasks | `gpt-5.2` | Best balance of speed and quality |
+| Complex reasoning | `o1` | Specialized for step-by-step thinking |
+| Fast responses | `gpt-4o` | Optimized for speed |
+| Cost-sensitive | `gpt-4-turbo` | Good performance, lower cost |
+
+## Cost Optimization
+
+1. **Use appropriate models**: Don't use `o1` for simple tasks
+2. **Set `max_tokens`**: Limit response length to reduce costs
+3. **Enable caching**: Automatically enabled for system prompts
+4. **Monitor usage**: Check OpenAI dashboard regularly
+
+## Related Documentation
+
+- [Model List Configuration](/configuration/model-list)
+- [Agent Configuration](/configuration/agents)
+- [Custom Providers](/api/providers/custom)

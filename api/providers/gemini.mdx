@@ -1,0 +1,311 @@
+---
+title: Google Gemini Provider
+description: Configure and use Google Gemini models with PicoClaw
+---
+
+## Overview
+
+The Google Gemini provider enables access to Google's Gemini models through OpenAI-compatible API protocol. Gemini models offer strong multimodal capabilities and large context windows.
+
+## Configuration
+
+### Model List Format
+
+Add Gemini models to your `model_list` configuration:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gemini",
+      "model": "gemini/gemini-2.0-flash",
+      "api_key": "your-gemini-api-key",
+      "api_base": "https://generativelanguage.googleapis.com/v1beta",
+      "request_timeout": 300
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "gemini"
+    }
+  }
+}
+```
+
+### Configuration Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `model_name` | string | Yes | - | Alias for this model configuration |
+| `model` | string | Yes | - | Model identifier with `gemini/` prefix |
+| `api_key` | string | Yes* | - | Your Google AI Studio API key |
+| `api_base` | string | No | `https://generativelanguage.googleapis.com/v1beta` | API endpoint URL |
+| `request_timeout` | integer | No | 120 | Request timeout in seconds |
+
+*Required unless using OAuth authentication (Antigravity)
+
+## Available Models
+
+Google provides several Gemini model families:
+
+### Gemini 2.0 Series (Latest)
+- `gemini/gemini-2.0-flash` - Fast and efficient, best for most tasks
+- `gemini/gemini-2.0-flash-exp` - Experimental version with latest features
+
+### Gemini 1.5 Series
+- `gemini/gemini-1.5-pro` - Most capable 1.5 model
+- `gemini/gemini-1.5-flash` - Fast 1.5 variant
+- `gemini/gemini-1.5-flash-8b` - Compact variant
+
+### Gemini 1.0 Series (Legacy)
+- `gemini/gemini-1.0-pro` - Original Gemini model
+
+<Note>
+Gemini models support up to 2M token context windows (1.5 Pro) and native multimodal understanding.
+</Note>
+
+## Setup Instructions
+
+### Method 1: API Key (Recommended)
+
+#### 1. Get API Key
+
+1. Visit [Google AI Studio](https://aistudio.google.com/api-keys)
+2. Sign in with your Google account
+3. Click **Create API Key**
+4. Copy your API key
+
+#### 2. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gemini",
+      "model": "gemini/gemini-2.0-flash",
+      "api_key": "your-actual-key-here"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "gemini",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  }
+}
+```
+
+#### 3. Test Connection
+
+```bash
+picoclaw agent -m "Hello Gemini, test my connection"
+```
+
+### Method 2: Antigravity OAuth
+
+For Google Cloud OAuth authentication:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gemini",
+      "model": "antigravity/gemini-2.0-flash",
+      "auth_method": "oauth"
+    }
+  ]
+}
+```
+
+No API key needed - uses Google Cloud OAuth.
+
+## Advanced Configuration
+
+### Custom API Endpoint
+
+Use a custom Gemini-compatible endpoint:
+
+```json
+{
+  "model_name": "gemini-proxy",
+  "model": "gemini/gemini-2.0-flash",
+  "api_base": "https://my-proxy.com/v1beta",
+  "api_key": "your-key",
+  "request_timeout": 300
+}
+```
+
+### Extended Context
+
+Gemini models support massive context windows:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model_name": "gemini",
+      "max_tokens": 8192
+    }
+  }
+}
+```
+
+Context limits by model:
+- Gemini 1.5 Pro: Up to 2M tokens
+- Gemini 2.0 Flash: Up to 1M tokens
+- Gemini 1.5 Flash: Up to 1M tokens
+
+### Multimodal Support
+
+Gemini natively supports text, images, audio, and video:
+
+```json
+{
+  "model_name": "gemini",
+  "model": "gemini/gemini-2.0-flash",
+  "api_key": "your-key"
+}
+```
+
+PicoClaw automatically formats media content for Gemini API.
+
+### Thinking/Reasoning Mode
+
+Gemini 2.0 Flash supports thinking mode for complex reasoning:
+
+```json
+{
+  "model_name": "gemini-thinking",
+  "model": "gemini/gemini-2.0-flash-thinking-exp",
+  "api_key": "your-key"
+}
+```
+
+The model's reasoning process is captured in `thought_signature` field.
+
+## Protocol Details
+
+Gemini uses OpenAI-compatible API through PicoClaw:
+- Endpoint: `/chat/completions`
+- Authentication: Bearer token via `Authorization` header
+- Request format: OpenAI-compatible JSON
+- Response format: OpenAI-compatible JSON
+
+PicoClaw automatically:
+- Strips `gemini/` prefix when sending requests
+- Converts messages to Gemini format
+- Handles multimodal content
+- Preserves `thought_signature` from Gemini 2.0
+- Skips `prompt_cache_key` (not supported by Gemini)
+
+## Troubleshooting
+
+### Invalid API Key
+
+Error: `400 API key not valid`
+- Verify your API key is correct
+- Ensure API key is from AI Studio (not Cloud Console)
+- Check key hasn't been restricted or revoked
+
+### Rate Limiting
+
+Free tier has generous limits:
+- 15 requests per minute
+- 1 million tokens per minute
+- 1,500 requests per day
+
+If you need more:
+- Wait for rate limit to reset
+- Upgrade to paid tier
+- Configure multiple API keys for load balancing
+
+### Region Restrictions
+
+Gemini API may not be available in all regions:
+- Check [availability page](https://ai.google.dev/available_regions)
+- Use VPN if necessary
+- Contact Google Cloud for enterprise access
+
+### Timeout Errors
+
+Increase timeout for large context or complex requests:
+
+```json
+{
+  "model_name": "gemini",
+  "model": "gemini/gemini-2.0-flash",
+  "api_key": "your-key",
+  "request_timeout": 600
+}
+```
+
+## Model Selection Guide
+
+| Use Case | Recommended Model | Notes |
+|----------|-------------------|-------|
+| General tasks | `gemini-2.0-flash` | Best balance of speed and quality |
+| Large documents | `gemini-1.5-pro` | 2M token context window |
+| Fast responses | `gemini-2.0-flash` | Optimized for speed |
+| Multimodal | `gemini-2.0-flash` | Supports text, image, audio, video |
+| Complex reasoning | `gemini-2.0-flash-thinking-exp` | Experimental thinking mode |
+| Cost-sensitive | `gemini-1.5-flash-8b` | Most economical option |
+
+## Cost Optimization
+
+1. **Use appropriate models**: Use Flash for most tasks, Pro only for complex analysis
+2. **Leverage free tier**: Generous limits for personal use
+3. **Set `max_tokens`**: Limit response length to reduce costs
+4. **Monitor usage**: Check AI Studio dashboard
+5. **Use extended context wisely**: Only include necessary context
+
+## Free Tier
+
+Google AI Studio offers generous free tier:
+- **15 RPM** (requests per minute)
+- **1M TPM** (tokens per minute)
+- **1,500 RPD** (requests per day)
+- No credit card required
+- Ideal for development and testing
+
+## Comparison with Other Providers
+
+| Feature | Gemini | OpenAI | Anthropic |
+|---------|--------|--------|------------|
+| Context window | Up to 2M | Up to 200K | Up to 200K |
+| Multimodal | Native | Limited | Limited |
+| Free tier | Yes (generous) | Limited | No |
+| Speed | Very fast | Fast | Fast |
+| Cost | Low | Medium | Medium |
+
+## Legacy Configuration (Deprecated)
+
+Older configuration format (still supported):
+
+```json
+{
+  "providers": {
+    "gemini": {
+      "api_key": "your-key",
+      "api_base": "https://generativelanguage.googleapis.com/v1beta"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "gemini",
+      "model": "gemini-2.0-flash"
+    }
+  }
+}
+```
+
+**Migrate to `model_list` format** for better features like load balancing and fallbacks.
+
+## Related Documentation
+
+- [Model List Configuration](/configuration/model-list)
+- [Agent Configuration](/configuration/agents)
+- [Multimodal Support](/guides/multimodal)
+- [Antigravity OAuth Setup](/guides/antigravity-oauth)

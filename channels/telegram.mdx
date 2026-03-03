@@ -1,0 +1,322 @@
+---
+title: Telegram Channel
+description: Connect PicoClaw to Telegram using a bot token
+---
+
+Telegram is the **easiest** channel to set up and is **highly recommended** for beginners. You only need a bot token from @BotFather - no webhook configuration or server setup required.
+
+## Why Telegram?
+
+- **Simple Setup**: Just a bot token, no complicated configuration
+- **No Webhooks**: Uses long polling, works behind NAT/firewall
+- **Rich Features**: Supports text, voice messages, files, and media
+- **Group Chat**: Works in private chats and group conversations
+- **Voice Transcription**: Automatic transcription when Groq is configured
+
+## Prerequisites
+
+- A Telegram account
+- PicoClaw installed and configured with an LLM provider
+- 2 minutes of your time
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Create a Bot">
+    Open Telegram and search for `@BotFather`:
+
+    1. Start a chat with @BotFather
+    2. Send the command `/newbot`
+    3. Follow the prompts to choose a name and username for your bot
+    4. Copy the bot token (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+    <Note>
+    Keep your bot token secure! Anyone with this token can control your bot.
+    </Note>
+  </Step>
+
+  <Step title="Get Your User ID">
+    To restrict bot access to yourself:
+
+    1. Search for `@userinfobot` in Telegram
+    2. Start a chat and send any message
+    3. Copy your user ID (a numeric value like `123456789`)
+
+    <Tip>
+    You can skip this step and leave `allow_from` empty to allow anyone to use your bot, but this is not recommended for personal assistants.
+    </Tip>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json` and add the Telegram configuration:
+
+    ```json
+    {
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+          "allow_from": ["123456789"]
+        }
+      }
+    }
+    ```
+
+    Replace:
+    - `token`: Your bot token from @BotFather
+    - `allow_from`: Your user ID from @userinfobot (or empty array `[]` for public access)
+  </Step>
+
+  <Step title="Start the Gateway">
+    Run the Gateway server:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    You should see a log message confirming Telegram connection:
+    ```
+    [INFO] telegram: Connected to Telegram
+    ```
+  </Step>
+
+  <Step title="Test Your Bot">
+    1. Search for your bot's username in Telegram
+    2. Start a chat with `/start`
+    3. Send a message like "Hello!"
+    4. Your bot should respond with AI-generated replies
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Basic Configuration
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "allow_from": ["USER_ID_1", "USER_ID_2"]
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Set to `true` to enable Telegram channel |
+| `token` | string | Yes | Bot token from @BotFather |
+| `allow_from` | array | No | List of allowed user IDs (empty array = allow all) |
+
+### Access Control
+
+**Allow specific users only:**
+```json
+{
+  "allow_from": ["123456789", "987654321"]
+}
+```
+
+**Allow everyone (public bot):**
+```json
+{
+  "allow_from": []
+}
+```
+
+<Warning>
+Public bots can be used by anyone who finds your bot. This may result in:
+- Unexpected API costs from your LLM provider
+- Abuse or spam
+- Privacy concerns if your bot has access to personal information
+
+Always use `allow_from` for personal assistants.
+</Warning>
+
+## Features
+
+### Text Messages
+
+Send any text message to your bot and receive AI-generated responses. The bot maintains conversation context within the session.
+
+### Voice Messages
+
+If you have Groq configured with a Whisper API key, Telegram voice messages are **automatically transcribed** and processed:
+
+```json
+{
+  "providers": {
+    "groq": {
+      "api_key": "gsk_your_groq_key"
+    }
+  }
+}
+```
+
+<Tip>
+Groq offers **free** voice transcription via their Whisper API. Get your API key at [console.groq.com](https://console.groq.com).
+</Tip>
+
+### Group Chats
+
+Telegram bots work in group chats. By default:
+- The bot responds to all messages in groups where it's added
+- You can mention the bot with `@yourbotname` to direct messages to it
+
+<Note>
+For privacy, bots need "Privacy Mode" disabled in @BotFather settings to read all group messages. Otherwise, they only see commands and @mentions.
+</Note>
+
+### File Handling
+
+Send files, images, and documents to your bot for analysis or processing (requires compatible LLM with vision capabilities).
+
+## Troubleshooting
+
+### "Conflict: terminated by other getUpdates"
+
+**Cause**: Another instance of the bot is already running, or you're using the same token elsewhere.
+
+**Solution**:
+1. Stop all other `picoclaw gateway` processes
+2. Make sure no other applications are using your bot token
+3. Restart the gateway with `picoclaw gateway`
+
+### Bot doesn't respond
+
+**Check these common issues**:
+
+1. **Gateway not running**: Make sure `picoclaw gateway` is running
+2. **Wrong user ID**: Verify your user ID in `allow_from` matches your Telegram ID
+3. **LLM not configured**: Ensure you have a valid LLM provider configured
+4. **Token invalid**: Regenerate token with @BotFather if needed
+
+### Check logs for errors
+
+```bash
+# Run gateway with verbose logging
+picoclaw gateway
+```
+
+Look for error messages related to Telegram in the output.
+
+### Bot receives but doesn't reply
+
+**Possible causes**:
+- LLM provider API key is invalid or expired
+- LLM provider rate limits exceeded
+- Network connectivity issues
+
+**Check**:
+1. Test your LLM configuration with `picoclaw agent -m "test"`
+2. Review your API key in `config.json`
+3. Check your provider's dashboard for errors
+
+## Advanced Configuration
+
+### Using with Docker
+
+If running PicoClaw in Docker, the Gateway is accessible inside the container:
+
+```bash
+# In your docker-compose.yml or docker run command
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+No special Telegram configuration needed - polling works from inside containers.
+
+### Multiple User IDs
+
+To allow multiple users:
+
+```json
+{
+  "allow_from": ["123456789", "987654321", "555555555"]
+}
+```
+
+Each user maintains their own conversation session and context.
+
+### Environment Variables
+
+You can override configuration with environment variables:
+
+```bash
+export PICOCLAW_CHANNELS_TELEGRAM_ENABLED=true
+export PICOCLAW_CHANNELS_TELEGRAM_TOKEN="your-token"
+picoclaw gateway
+```
+
+## Privacy & Security
+
+<Warning>
+**Important Security Notes**:
+
+- Never share your bot token publicly
+- Never commit your token to version control
+- Always use `allow_from` to restrict access for personal bots
+- Bot tokens can be regenerated via @BotFather if compromised
+- PicoClaw logs may contain message content - protect your log files
+</Warning>
+
+### Best Practices
+
+1. **Personal Use**: Always set `allow_from` with your user ID
+2. **Team Use**: List all team member IDs in `allow_from`
+3. **Token Rotation**: Regenerate tokens periodically via @BotFather
+4. **Log Management**: Rotate and secure log files containing conversations
+5. **LLM Costs**: Monitor API usage to avoid unexpected bills
+
+## Complete Example
+
+Here's a complete `config.json` snippet for Telegram:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4",
+      "max_tokens": 8192
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-openai-key"
+    }
+  ],
+  "providers": {
+    "groq": {
+      "api_key": "gsk_your_groq_key"
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+      "allow_from": ["123456789"]
+    }
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Discord Channel" icon="discord" href="/channels/discord">
+    Set up Discord integration
+  </Card>
+  <Card title="WhatsApp Channel" icon="whatsapp" href="/channels/whatsapp">
+    Connect via WhatsApp
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Learn about other configuration options
+  </Card>
+  <Card title="Troubleshooting" icon="life-ring" href="/community/troubleshooting">
+    Common issues and solutions
+  </Card>
+</CardGroup>

@@ -1,122 +1,156 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "PicoClaw",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3E5DB9",
+    "light": "#5A7DD9",
+    "dark": "#2A4399"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/sipeed/picoclaw"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/sipeed/picoclaw",
+      "discord": "https://discord.gg/V4sAZ9XWpN",
+      "x": "https://x.com/SipeedIO"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/agents",
+              "concepts/tools",
+              "concepts/providers",
+              "concepts/security"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Commands",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "commands/agent",
+              "commands/gateway",
+              "commands/onboard",
+              "commands/cron",
+              "commands/status",
+              "commands/auth"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Configuration",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "configuration/overview",
+              "configuration/agents",
+              "configuration/models",
+              "configuration/providers",
+              "configuration/tools",
+              "configuration/workspace",
+              "configuration/environment-variables"
+            ]
+          },
+          {
+            "group": "Chat Channels",
+            "pages": [
+              "channels/overview",
+              "channels/telegram",
+              "channels/discord",
+              "channels/whatsapp",
+              "channels/qq",
+              "channels/dingtalk",
+              "channels/line",
+              "channels/wecom"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/web-search",
+              "features/heartbeat",
+              "features/memory",
+              "features/skills",
+              "features/scheduled-tasks",
+              "features/mcp"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/raspberry-pi",
+              "deployment/android",
+              "deployment/embedded-devices",
+              "deployment/systemd"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/subagents",
+              "advanced/custom-tools",
+              "advanced/load-balancing",
+              "advanced/migration"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Tools API",
             "pages": [
-              "api-reference/introduction"
+              "api/tools/filesystem",
+              "api/tools/shell",
+              "api/tools/web",
+              "api/tools/message",
+              "api/tools/cron",
+              "api/tools/spawn"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Provider API",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/providers/openai",
+              "api/providers/anthropic",
+              "api/providers/zhipu",
+              "api/providers/gemini",
+              "api/providers/custom"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Community",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "community/contributing",
+              "community/roadmap",
+              "community/troubleshooting",
+              "community/faq"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

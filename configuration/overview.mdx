@@ -1,0 +1,126 @@
+---
+title: Configuration Overview
+description: Complete guide to PicoClaw configuration system
+---
+
+## Configuration File Location
+
+PicoClaw stores its configuration in `~/.picoclaw/config.json` by default.
+
+You can override this location using the `PICOCLAW_CONFIG` environment variable:
+
+```bash
+PICOCLAW_CONFIG=/etc/picoclaw/production.json picoclaw gateway
+```
+
+## Initializing Configuration
+
+Create your initial configuration file:
+
+```bash
+picoclaw onboard
+```
+
+This creates:
+- `~/.picoclaw/config.json` - Main configuration file
+- `~/.picoclaw/workspace/` - Default workspace directory
+
+## Complete Configuration Example
+
+Here's a complete `config.json` example:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "max_tool_iterations": 20
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key",
+      "request_timeout": 300
+    },
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "your-anthropic-key"
+    }
+  ],
+  "tools": {
+    "web": {
+      "brave": {
+        "enabled": false,
+        "api_key": "YOUR_BRAVE_API_KEY",
+        "max_results": 5
+      },
+      "tavily": {
+        "enabled": false,
+        "api_key": "YOUR_TAVILY_API_KEY",
+        "max_results": 5
+      },
+      "duckduckgo": {
+        "enabled": true,
+        "max_results": 5
+      }
+    }
+  }
+}
+```
+
+## Configuration Precedence
+
+Configuration values are resolved in this order (highest to lowest priority):
+
+1. **Environment Variables** - Override any config setting
+2. **Config File** (`~/.picoclaw/config.json`) - User-defined settings
+3. **Default Values** - Built-in defaults from PicoClaw
+
+### Example: Setting Model via Environment
+
+```bash
+# Override model in config.json
+PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=claude-sonnet-4.6 picoclaw agent
+
+# Override workspace location
+PICOCLAW_AGENTS_DEFAULTS_WORKSPACE=/custom/path picoclaw agent
+```
+
+## Configuration Structure
+
+The configuration file is organized into these main sections:
+
+- **[agents](/configuration/agents)** - Agent behavior and model settings
+- **[model_list](/configuration/models)** - Model provider configuration
+- **[providers](/configuration/providers)** - Legacy provider config (deprecated)
+- **[tools](/configuration/tools)** - Tool-specific settings (web search, cron, etc.)
+- **[channels](/channels)** - Chat platform integrations (Telegram, Discord, etc.)
+- **gateway** - HTTP server settings for webhooks
+- **heartbeat** - Periodic task configuration
+
+## Environment Variable Overrides
+
+All configuration options can be overridden with environment variables. See [Environment Variables](/configuration/environment-variables) for the complete list.
+
+Environment variable format:
+```
+PICOCLAW_<SECTION>_<SUBSECTION>_<FIELD>
+```
+
+Examples:
+- `PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME`
+- `PICOCLAW_TOOLS_WEB_BRAVE_API_KEY`
+- `PICOCLAW_HEARTBEAT_ENABLED`
+
+## Next Steps
+
+- [Configure Agent Defaults](/configuration/agents)
+- [Set Up Model Providers](/configuration/models)
+- [Configure Tools](/configuration/tools)
+- [Set Up Workspace](/configuration/workspace)

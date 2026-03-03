@@ -1,0 +1,295 @@
+---
+title: Zhipu AI Provider
+description: Configure and use Zhipu GLM models with PicoClaw
+---
+
+## Overview
+
+The Zhipu AI provider enables access to GLM (General Language Model) series from Zhipu AI (智谱AI). These models are optimized for Chinese language tasks and provide excellent performance for both Chinese and English.
+
+## Configuration
+
+### Model List Format
+
+Add Zhipu models to your `model_list` configuration:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4",
+      "request_timeout": 300
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "glm-4.7"
+    }
+  }
+}
+```
+
+### Configuration Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `model_name` | string | Yes | - | Alias for this model configuration |
+| `model` | string | Yes | - | Model identifier with `zhipu/` prefix |
+| `api_key` | string | Yes | - | Your Zhipu AI API key |
+| `api_base` | string | No | `https://open.bigmodel.cn/api/paas/v4` | API endpoint URL |
+| `request_timeout` | integer | No | 120 | Request timeout in seconds |
+
+## Available Models
+
+Zhipu AI provides several GLM model families:
+
+### GLM-4 Series (Latest)
+- `zhipu/glm-4.7` - Latest GLM-4 model, best performance
+- `zhipu/glm-4` - GLM-4 base model
+- `zhipu/glm-4-plus` - Enhanced GLM-4 with improved capabilities
+- `zhipu/glm-4-air` - Lightweight GLM-4 variant
+- `zhipu/glm-4-flash` - Fast inference variant
+
+### GLM-3 Series
+- `zhipu/glm-3-turbo` - Fast GLM-3 model
+
+### Specialized Models
+- `zhipu/glm-4v` - Vision-capable model (multimodal)
+- `zhipu/glm-4-alltools` - Model with enhanced tool-calling capabilities
+
+<Note>
+GLM-4 models use `max_completion_tokens` instead of `max_tokens`. PicoClaw handles this automatically.
+</Note>
+
+## Setup Instructions
+
+### 1. Get API Key
+
+1. Visit [Zhipu AI Platform](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys)
+2. Sign in or create an account (可使用微信登录)
+3. Navigate to **API密钥管理** (API Key Management)
+4. Click **创建新的APIKey** (Create New API Key)
+5. Copy your API key
+
+### 2. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-actual-key-here"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "glm-4.7",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  }
+}
+```
+
+### 3. Test Connection
+
+```bash
+picoclaw agent -m "你好，测试智谱连接"
+```
+
+## Advanced Configuration
+
+### Custom API Endpoint
+
+Use a custom endpoint (e.g., for enterprise deployments):
+
+```json
+{
+  "model_name": "glm-enterprise",
+  "model": "zhipu/glm-4.7",
+  "api_base": "https://enterprise.bigmodel.cn/api/paas/v4",
+  "api_key": "your-key",
+  "request_timeout": 300
+}
+```
+
+### Load Balancing
+
+Configure multiple API keys for load balancing:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "key-1"
+    },
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "key-2"
+    }
+  ]
+}
+```
+
+PicoClaw automatically round-robins between endpoints with the same `model_name`.
+
+### Multimodal (Vision) Support
+
+Use GLM-4V for image understanding:
+
+```json
+{
+  "model_name": "glm-vision",
+  "model": "zhipu/glm-4v",
+  "api_key": "your-key"
+}
+```
+
+## Protocol Details
+
+Zhipu AI uses OpenAI-compatible API protocol:
+- Endpoint: `/chat/completions`
+- Authentication: Bearer token via `Authorization` header
+- Request format: OpenAI-compatible JSON
+- Response format: OpenAI-compatible JSON
+
+PicoClaw automatically:
+- Strips `zhipu/` prefix when sending requests
+- Uses `max_completion_tokens` for GLM-4 models
+- Handles tool calling in OpenAI format
+
+## Troubleshooting
+
+### Content Filtering
+
+Zhipu AI has content safety filters. If you receive filtering errors:
+- Rephrase your query to avoid sensitive topics
+- Use different wording
+- Check Zhipu's content policy guidelines
+
+### Rate Limiting
+
+Free tier has rate limits:
+- Configure multiple API keys for load balancing
+- Upgrade to paid plan for higher limits
+- Implement request throttling
+
+### Invalid API Key
+
+Error: `401 Unauthorized`
+- Verify your API key is correct
+- Check key hasn't expired
+- Ensure sufficient credits in your account
+
+### Timeout Errors
+
+Increase timeout for complex requests:
+
+```json
+{
+  "model_name": "glm-4.7",
+  "model": "zhipu/glm-4.7",
+  "api_key": "your-key",
+  "request_timeout": 600
+}
+```
+
+## Model Selection Guide
+
+| Use Case | Recommended Model | Notes |
+|----------|-------------------|-------|
+| Chinese tasks | `glm-4.7` | Best for Chinese language |
+| General tasks | `glm-4-plus` | Enhanced capabilities |
+| Fast responses | `glm-4-flash` | Optimized for speed |
+| Vision tasks | `glm-4v` | Supports image input |
+| Tool calling | `glm-4-alltools` | Enhanced function calling |
+| Cost-sensitive | `glm-4-air` | Lightweight and economical |
+
+## Cost Optimization
+
+1. **Choose appropriate models**: Use `glm-4-air` for simple tasks, `glm-4.7` for complex tasks
+2. **Set `max_tokens`**: Limit response length to reduce costs
+3. **Monitor usage**: Check Zhipu Console regularly
+4. **Use load balancing**: Distribute requests across multiple free-tier keys
+5. **Leverage free tier**: 200K tokens/month free
+
+## Free Tier
+
+Zhipu AI offers generous free tier:
+- **200K tokens per month** for free
+- No credit card required
+- Ideal for personal projects and testing
+
+## Language Support
+
+GLM models excel at:
+- **Chinese**: Native language, best performance
+- **English**: Good performance for English tasks
+- **Code**: Strong coding capabilities
+- **Mixed**: Handles Chinese-English mixed content well
+
+## Legacy Configuration (Deprecated)
+
+Older configuration format (still supported):
+
+```json
+{
+  "providers": {
+    "zhipu": {
+      "api_key": "your-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "zhipu",
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+**Migrate to `model_list` format** for better features like load balancing and fallbacks.
+
+## Example Configuration
+
+Complete example with fallback:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-..."
+    },
+    {
+      "model_name": "glm",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "glm",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  }
+}
+```
+
+## Related Documentation
+
+- [Model List Configuration](/configuration/model-list)
+- [Agent Configuration](/configuration/agents)
+- [Chinese Language Setup](/guides/chinese-setup)

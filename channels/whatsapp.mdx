@@ -1,0 +1,388 @@
+---
+title: WhatsApp Channel
+description: Connect PicoClaw to WhatsApp using native integration or bridge mode
+---
+
+PicoClaw supports WhatsApp integration in two modes: **native** (recommended) using whatsmeow, or **bridge** mode connecting to an external WebSocket bridge.
+
+## Integration Modes
+
+### Native Mode (Recommended)
+
+- **In-process integration** using [whatsmeow](https://github.com/tulir/whatsmeow)
+- No separate bridge server needed
+- QR code authentication on first run
+- Session persistence across restarts
+- Requires building with `-tags whatsapp_native`
+
+### Bridge Mode
+
+- Connect to external WebSocket bridge
+- Useful if you already have a WhatsApp bridge running
+- Requires separate bridge server setup
+- More complex deployment
+
+<Note>
+Native mode is **optional** to keep the default binary small. You need to build PicoClaw with WhatsApp support enabled, or use a pre-built binary with native support.
+</Note>
+
+## Prerequisites
+
+- WhatsApp account on your phone
+- PicoClaw installed with LLM provider configured
+- For native mode: PicoClaw built with `-tags whatsapp_native`
+
+## Native Mode Setup
+
+<Steps>
+  <Step title="Build with WhatsApp Support">
+    Native WhatsApp support is optional. Build PicoClaw with the native tag:
+
+    ```bash
+    # Using make
+    make build-whatsapp-native
+
+    # Or directly with go
+    go build -tags whatsapp_native ./cmd/picoclaw
+    ```
+
+    The binary will include native WhatsApp integration.
+
+    <Tip>
+    If you downloaded a pre-built binary, check if it includes WhatsApp support by running `picoclaw gateway` with WhatsApp enabled. If it shows an error about missing support, rebuild with the tag.
+    </Tip>
+  </Step>
+
+  <Step title="Configure Native Mode">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "whatsapp": {
+          "enabled": true,
+          "use_native": true,
+          "session_store_path": "",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    | Field | Value | Description |
+    | --- | --- | --- |
+    | `enabled` | `true` | Enable WhatsApp channel |
+    | `use_native` | `true` | Use native whatsmeow integration |
+    | `session_store_path` | `""` | Leave empty to use `<workspace>/whatsapp/` |
+    | `allow_from` | `[]` | List of allowed phone numbers (empty = allow all) |
+
+    <Note>
+    If `session_store_path` is empty, sessions are stored in `~/.picoclaw/workspace/whatsapp/` by default.
+    </Note>
+  </Step>
+
+  <Step title="Start Gateway and Scan QR Code">
+    Run the Gateway:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    On first run, a QR code will be printed in the terminal:
+
+    ```
+    [INFO] whatsapp: Starting native WhatsApp client
+    [INFO] whatsapp: No session found, please scan QR code:
+
+    ████████████████████████████████
+    ██ ▄▄▄▄▄ █▀ █▀▀██  █ ▄▄▄▄▄ ██
+    ██ █   █ █▀█  ▀▄ ▀█ █ █   █ ██
+    ██ █▄▄▄█ ██▄▀ ▄▀▀ █ █▄▄▄█ ██
+    ...
+    ```
+
+    1. Open WhatsApp on your phone
+    2. Go to **Settings** → **Linked Devices**
+    3. Tap **Link a Device**
+    4. Scan the QR code from the terminal
+    5. Wait for connection confirmation
+  </Step>
+
+  <Step title="Verify Connection">
+    After successful scanning, you'll see:
+
+    ```
+    [INFO] whatsapp: Connected successfully
+    [INFO] whatsapp: Session saved to workspace/whatsapp/
+    ```
+
+    Your WhatsApp bot is now ready! Send a message to the linked account to test.
+  </Step>
+</Steps>
+
+## Bridge Mode Setup
+
+<Steps>
+  <Step title="Set Up WhatsApp Bridge">
+    Bridge mode requires a separate WebSocket bridge server. Popular options:
+
+    - [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js)
+    - [Baileys](https://github.com/WhiskeySockets/Baileys)
+    - Custom bridge implementation
+
+    Set up your bridge server to listen on a WebSocket endpoint (e.g., `ws://localhost:3001`).
+  </Step>
+
+  <Step title="Configure Bridge Mode">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "whatsapp": {
+          "enabled": true,
+          "use_native": false,
+          "bridge_url": "ws://localhost:3001",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    | Field | Value | Description |
+    | --- | --- | --- |
+    | `enabled` | `true` | Enable WhatsApp channel |
+    | `use_native` | `false` | Use bridge mode |
+    | `bridge_url` | WebSocket URL | Bridge server endpoint |
+    | `allow_from` | Array of numbers | Allowed phone numbers (optional) |
+  </Step>
+
+  <Step title="Start Gateway">
+    Ensure your bridge server is running, then start PicoClaw:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    The gateway will connect to your bridge via WebSocket.
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Native Mode Configuration
+
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "use_native": true,
+      "session_store_path": "",
+      "allow_from": ["+1234567890", "+9876543210"]
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Enable WhatsApp channel |
+| `use_native` | boolean | Yes | Set to `true` for native mode |
+| `session_store_path` | string | No | Session storage path (default: `<workspace>/whatsapp/`) |
+| `allow_from` | array | No | Allowed phone numbers in international format |
+
+### Bridge Mode Configuration
+
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "use_native": false,
+      "bridge_url": "ws://localhost:3001",
+      "allow_from": []
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Enable WhatsApp channel |
+| `use_native` | boolean | Yes | Set to `false` for bridge mode |
+| `bridge_url` | string | Yes | WebSocket URL of bridge server |
+| `allow_from` | array | No | Allowed phone numbers |
+
+### Access Control
+
+**Allow specific numbers:**
+```json
+{
+  "allow_from": ["+1234567890", "+9876543210"]
+}
+```
+
+Use international format: `+[country code][number]`
+
+**Allow everyone:**
+```json
+{
+  "allow_from": []
+}
+```
+
+<Warning>
+Allowing all users means anyone with your WhatsApp number can use your bot, potentially incurring API costs.
+</Warning>
+
+## Features
+
+### Text Messages
+
+Send and receive text messages with full conversation context.
+
+### Group Chats
+
+Bot can participate in WhatsApp groups (if invited and allowed by `allow_from`).
+
+### Media Support
+
+Depending on your bridge/native implementation:
+- Image recognition (with vision-capable LLM)
+- Document handling
+- Voice message transcription (with Groq/Whisper)
+
+### Session Persistence
+
+In native mode, the session is saved to disk. After the initial QR scan:
+- Subsequent restarts don't require re-scanning
+- Session remains valid unless you unlink the device
+- Sessions are stored in `<workspace>/whatsapp/`
+
+## Troubleshooting
+
+### "WhatsApp native support not enabled"
+
+**Cause**: PicoClaw binary doesn't include WhatsApp native support
+
+**Solution**: Rebuild with the native tag:
+```bash
+make build-whatsapp-native
+# or
+go build -tags whatsapp_native ./cmd/picoclaw
+```
+
+### QR Code Not Displaying
+
+**Possible causes**:
+1. Terminal doesn't support QR code rendering
+2. Configuration has `use_native: false`
+3. Session already exists (check `<workspace>/whatsapp/`)
+
+**Solution**:
+- Verify `use_native: true` in config
+- Delete existing session files to force re-authentication
+- Use a different terminal emulator
+
+### "Connection Closed" or Disconnected
+
+**Possible causes**:
+1. WhatsApp unlinked the device
+2. Phone is offline
+3. Session expired
+
+**Solution**:
+1. Check WhatsApp → Settings → Linked Devices
+2. Ensure your phone has internet connection
+3. Delete session and re-scan QR code:
+   ```bash
+   rm -rf ~/.picoclaw/workspace/whatsapp/
+   picoclaw gateway
+   ```
+
+### Bridge Mode Connection Failed
+
+**Check**:
+1. Bridge server is running
+2. `bridge_url` is correct
+3. Network connectivity between PicoClaw and bridge
+4. Bridge logs for errors
+
+### Bot Doesn't Respond
+
+**Possible causes**:
+1. Number not in `allow_from` list
+2. LLM provider issues
+3. Session disconnected
+
+**Solution**:
+- Check `allow_from` configuration
+- Test LLM with `picoclaw agent -m "test"`
+- Review Gateway logs for errors
+
+## Privacy & Security
+
+<Warning>
+**Security Considerations**:
+
+- WhatsApp sessions grant access to your account
+- Session files contain authentication credentials
+- Protect the `workspace/whatsapp/` directory
+- Use `allow_from` to restrict access
+- Never share session files
+- Monitor linked devices in WhatsApp settings
+</Warning>
+
+### Best Practices
+
+1. **Session Storage**: Keep `session_store_path` secure with proper file permissions
+2. **Access Control**: Always use `allow_from` for personal bots
+3. **Regular Audits**: Check linked devices periodically in WhatsApp
+4. **Backup**: Back up session files if you don't want to re-scan QR codes
+5. **Monitoring**: Review Gateway logs for unexpected activity
+
+## Complete Example
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key"
+    }
+  ],
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "use_native": true,
+      "session_store_path": "",
+      "allow_from": ["+1234567890"]
+    }
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Telegram Channel" icon="telegram" href="/channels/telegram">
+    Simpler setup for testing
+  </Card>
+  <Card title="Discord Channel" icon="discord" href="/channels/discord">
+    Team collaboration platform
+  </Card>
+  <Card title="QQ Channel" icon="message" href="/channels/qq">
+    Popular in China
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Advanced configuration options
+  </Card>
+</CardGroup>

@@ -1,0 +1,323 @@
+---
+title: Embedded Device Deployment
+description: Deploy PicoClaw on ultra-low-cost embedded devices like LicheeRV-Nano, NanoKVM, and MaixCAM
+---
+
+## Overview
+
+PicoClaw's ultra-lightweight design (< 10MB RAM, 1-second boot) makes it perfect for embedded devices. You can run a full AI assistant on hardware as cheap as $9.90!
+
+## Supported Devices
+
+PicoClaw has been successfully deployed on:
+
+| Device | Price | Architecture | Memory | Use Case |
+|--------|-------|--------------|--------|----------|
+| [LicheeRV-Nano E/W](https://www.aliexpress.com/item/1005006519668532.html) | $9.90 | RISC-V | 64MB+ | Minimal Home Assistant |
+| [NanoKVM](https://www.aliexpress.com/item/1005007369816019.html) | $30-50 | ARM | 512MB+ | Automated Server Maintenance |
+| [NanoKVM-Pro](https://www.aliexpress.com/item/1005010048471263.html) | $100 | ARM | 1GB+ | Professional KVM with AI |
+| [MaixCAM](https://www.aliexpress.com/item/1005008053333693.html) | $50 | ARM | 256MB+ | Smart Monitoring |
+| [MaixCAM2](https://www.kickstarter.com/projects/zepan/maixcam2-build-your-next-gen-4k-ai-camera) | $100 | ARM | 512MB+ | 4K AI Camera with Assistant |
+
+## Hardware Requirements
+
+### Minimum Requirements
+
+- **CPU**: Any single-core 0.6GHz+ processor (ARM, ARM64, RISC-V, x86_64)
+- **RAM**: 10MB minimum, 64MB recommended
+- **Storage**: 50MB for binary + config
+- **Network**: WiFi or Ethernet
+
+### Recommended Specifications
+
+- **RAM**: 128MB+ for better performance
+- **Storage**: 256MB+ for logs and conversation history
+- **Network**: Stable connection for API calls
+
+## Architecture Support
+
+PicoClaw supports multiple architectures:
+
+- **ARM** (32-bit) - ARMv7 and later
+- **ARM64** (64-bit) - ARMv8/AArch64
+- **RISC-V** - RV64GC and compatible
+- **x86_64** - Standard x64 processors
+
+## LicheeRV-Nano Deployment
+
+### About LicheeRV-Nano
+
+The LicheeRV-Nano is an ultra-affordable RISC-V development board:
+
+- **Price**: $9.90
+- **CPU**: RISC-V C906 @ 1GHz
+- **RAM**: 64MB DDR2
+- **Variants**: E (Ethernet) or W (WiFi 6)
+- **Use Case**: Minimal home assistant, IoT gateway
+
+### Installation
+
+1. **Download the RISC-V binary**:
+
+```bash
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-riscv64
+chmod +x picoclaw-linux-riscv64
+```
+
+2. **Transfer to device** (via SCP or USB):
+
+```bash
+scp picoclaw-linux-riscv64 root@licheerv-nano:/usr/local/bin/picoclaw
+```
+
+3. **Initialize on device**:
+
+```bash
+ssh root@licheerv-nano
+picoclaw onboard
+```
+
+4. **Configure** your API keys in `~/.picoclaw/config.json`
+
+### Memory Optimization for 64MB RAM
+
+For devices with only 64MB RAM, optimize your configuration:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "max_tokens": 2048,
+      "temperature": 0.7,
+      "max_tool_iterations": 10
+    }
+  },
+  "heartbeat": {
+    "enabled": false
+  }
+}
+```
+
+## NanoKVM Deployment
+
+### About NanoKVM
+
+NanoKVM is a cost-effective KVM-over-IP solution:
+
+- **Price**: $30-100 (Standard/Pro)
+- **CPU**: ARM Cortex-A7/A53
+- **RAM**: 512MB - 1GB
+- **Use Case**: Remote server management with AI assistance
+
+### Installation
+
+1. **Download the ARM64 binary**:
+
+```bash
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+chmod +x picoclaw-linux-arm64
+```
+
+2. **Transfer to NanoKVM**:
+
+```bash
+scp picoclaw-linux-arm64 root@nanokvm:/usr/local/bin/picoclaw
+```
+
+3. **Set up as a service** (see [systemd guide](/deployment/systemd))
+
+### Use Cases for NanoKVM
+
+- **Automated monitoring**: AI agent monitors server status
+- **Alert analysis**: AI interprets error messages and suggests fixes
+- **Remote assistance**: Chat with your KVM via Telegram for server status
+
+## MaixCAM Deployment
+
+### About MaixCAM
+
+MaixCAM is an AI-enabled camera platform:
+
+- **Price**: $50 (MaixCAM) / $100 (MaixCAM2)
+- **CPU**: ARM Cortex-A7 @ 1GHz+
+- **RAM**: 256MB - 512MB
+- **Camera**: Built-in with AI processing
+- **Use Case**: Smart monitoring, security, computer vision
+
+### Installation
+
+1. **Download the appropriate binary**:
+
+```bash
+# For 32-bit systems
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm
+
+# For 64-bit systems
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+```
+
+2. **Transfer to MaixCAM** and install
+
+3. **Configure for monitoring**:
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN"
+    }
+  }
+}
+```
+
+### Use Cases for MaixCAM
+
+- **Smart security**: AI analyzes camera feeds and sends alerts
+- **Object detection**: Notify when specific objects are detected
+- **Event logging**: Natural language logs of camera events
+
+## Building from Source for Embedded Devices
+
+For custom architectures or latest features:
+
+```bash
+# Clone repository
+git clone https://github.com/sipeed/picoclaw.git
+cd picoclaw
+
+# Install dependencies
+make deps
+
+# Build for specific architectures
+make build-linux-arm      # 32-bit ARM
+make build-linux-arm64    # 64-bit ARM
+make build-linux-riscv64  # RISC-V 64-bit
+
+# Build all platforms
+make build-all
+```
+
+Binaries will be in the `build/` directory.
+
+## Performance Benchmarks
+
+### Memory Usage by Device
+
+| Device | RAM Total | PicoClaw Usage | Available for OS |
+|--------|-----------|----------------|------------------|
+| LicheeRV-Nano | 64MB | ~8MB | 56MB |
+| NanoKVM | 512MB | ~8MB | 504MB |
+| MaixCAM | 256MB | ~8MB | 248MB |
+
+### Boot Time
+
+On a 0.6GHz single-core processor:
+
+- **Cold start**: < 1 second
+- **Gateway mode**: < 2 seconds
+- **Memory footprint**: Stable at < 10MB
+
+## Network Configuration
+
+Embedded devices often need special network setup:
+
+### Static IP Configuration
+
+For devices without DHCP:
+
+```bash
+# Edit network config
+nano /etc/network/interfaces
+
+# Add static IP
+auto eth0
+iface eth0 inet static
+    address 192.168.1.100
+    netmask 255.255.255.0
+    gateway 192.168.1.1
+```
+
+### WiFi Setup (for W variants)
+
+```bash
+# Configure WiFi
+wpa_passphrase "YOUR_SSID" "YOUR_PASSWORD" >> /etc/wpa_supplicant/wpa_supplicant.conf
+
+# Restart networking
+systemctl restart networking
+```
+
+## Storage Management
+
+Embedded devices often have limited storage:
+
+### Check Available Space
+
+```bash
+df -h
+```
+
+### Clean Up Old Logs
+
+```bash
+# Limit session history
+find ~/.picoclaw/workspace/sessions -type f -mtime +7 -delete
+
+# Compress old logs
+find ~/.picoclaw -name "*.log" -mtime +1 -exec gzip {} \;
+```
+
+### Configure Log Rotation
+
+Create `/etc/logrotate.d/picoclaw`:
+
+```
+/var/log/picoclaw/*.log {
+    daily
+    rotate 3
+    compress
+    missingok
+    notifempty
+}
+```
+
+## Running as a Service
+
+For always-on operation, see the [systemd setup guide](/deployment/systemd).
+
+## Troubleshooting
+
+### Out of Memory
+
+- Reduce `max_tokens` in config
+- Disable heartbeat for very low-memory devices
+- Enable swap if available
+
+### Slow Performance
+
+- Check network latency to API provider
+- Reduce `max_tool_iterations`
+- Use a faster LLM provider (e.g., Groq, Cerebras)
+
+### Device Reboots
+
+- Check power supply stability
+- Monitor temperature: `cat /sys/class/thermal/thermal_zone0/temp`
+- Ensure adequate cooling
+
+## Community Deployments
+
+See PicoClaw running on embedded devices:
+
+<video src="https://private-user-images.githubusercontent.com/83055338/547056448-e7b031ff-d6f5-4468-bcca-5726b6fecb5c.mp4" controls>
+  Your browser does not support the video tag.
+</video>
+
+Share your deployment on our [Discord community](https://discord.gg/V4sAZ9XWpN)!
+
+## Next Steps
+
+- [Run as System Service](/deployment/systemd) - Auto-start on boot
+- [Optimize Configuration](/configuration) - Tune for your hardware
+- [Chat Apps Integration](/chat-apps) - Connect Telegram, Discord

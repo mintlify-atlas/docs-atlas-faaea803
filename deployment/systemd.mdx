@@ -1,0 +1,439 @@
+---
+title: systemd Service Setup
+description: Run PicoClaw as a system service with auto-start on boot
+---
+
+## Overview
+
+Running PicoClaw as a systemd service ensures it starts automatically on boot and restarts if it crashes. This is ideal for production deployments, embedded devices, and servers.
+
+## Prerequisites
+
+- PicoClaw installed (see [Installation Guide](/installation))
+- Linux system with systemd (most modern distributions)
+- Root or sudo access
+
+## Creating a systemd Service
+
+### 1. Create Service File
+
+Create a systemd unit file at `/etc/systemd/system/picoclaw.service`:
+
+```bash
+sudo nano /etc/systemd/system/picoclaw.service
+```
+
+### 2. Basic Service Configuration
+
+Add this configuration:
+
+```ini
+[Unit]
+Description=PicoClaw AI Assistant Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=picoclaw
+Group=picoclaw
+WorkingDirectory=/home/picoclaw
+ExecStart=/usr/local/bin/picoclaw gateway
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/picoclaw/.picoclaw
+
+# Environment variables (optional)
+Environment="PICOCLAW_CONFIG=/home/picoclaw/.picoclaw/config.json"
+Environment="PICOCLAW_HOME=/home/picoclaw/.picoclaw"
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 3. Create Dedicated User
+
+For security, run PicoClaw as a dedicated user:
+
+```bash
+# Create picoclaw user and group
+sudo useradd -r -s /bin/false picoclaw
+
+# Create home directory
+sudo mkdir -p /home/picoclaw
+sudo chown picoclaw:picoclaw /home/picoclaw
+```
+
+### 4. Set Up Configuration
+
+Copy your configuration to the service user's directory:
+
+```bash
+# Copy config
+sudo mkdir -p /home/picoclaw/.picoclaw
+sudo cp ~/.picoclaw/config.json /home/picoclaw/.picoclaw/
+
+# Set ownership
+sudo chown -R picoclaw:picoclaw /home/picoclaw/.picoclaw
+sudo chmod 600 /home/picoclaw/.picoclaw/config.json
+```
+
+### 5. Enable and Start Service
+
+```bash
+# Reload systemd to recognize new service
+sudo systemctl daemon-reload
+
+# Enable service to start on boot
+sudo systemctl enable picoclaw
+
+# Start the service now
+sudo systemctl start picoclaw
+```
+
+## Managing the Service
+
+### Check Service Status
+
+```bash
+sudo systemctl status picoclaw
+```
+
+Example output:
+
+```
+● picoclaw.service - PicoClaw AI Assistant Gateway
+     Loaded: loaded (/etc/systemd/system/picoclaw.service; enabled; vendor preset: enabled)
+     Active: active (running) since Mon 2026-03-03 10:00:00 UTC; 5min ago
+   Main PID: 12345 (picoclaw)
+      Tasks: 8 (limit: 4915)
+     Memory: 8.5M
+        CPU: 1.234s
+     CGroup: /system.slice/picoclaw.service
+             └─12345 /usr/local/bin/picoclaw gateway
+```
+
+### View Logs
+
+```bash
+# View recent logs
+sudo journalctl -u picoclaw
+
+# Follow logs in real-time
+sudo journalctl -u picoclaw -f
+
+# View logs from today
+sudo journalctl -u picoclaw --since today
+
+# View last 100 lines
+sudo journalctl -u picoclaw -n 100
+```
+
+### Stop the Service
+
+```bash
+sudo systemctl stop picoclaw
+```
+
+### Restart the Service
+
+```bash
+sudo systemctl restart picoclaw
+```
+
+### Disable Auto-Start
+
+```bash
+sudo systemctl disable picoclaw
+```
+
+## Advanced Configuration
+
+### Running as Your User
+
+If you prefer to run as your own user instead of a dedicated `picoclaw` user:
+
+```ini
+[Unit]
+Description=PicoClaw AI Assistant Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=%h
+ExecStart=/usr/local/bin/picoclaw gateway
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+```
+
+Install as a user service:
+
+```bash
+# Create user service directory
+mkdir -p ~/.config/systemd/user
+
+# Create service file
+nano ~/.config/systemd/user/picoclaw.service
+
+# Enable and start
+systemctl --user daemon-reload
+systemctl --user enable picoclaw
+systemctl --user start picoclaw
+
+# Enable lingering (allows service to run when not logged in)
+sudo loginctl enable-linger $USER
+```
+
+### Environment Variables
+
+Customize paths and settings using environment variables:
+
+```ini
+[Service]
+Environment="PICOCLAW_CONFIG=/etc/picoclaw/config.json"
+Environment="PICOCLAW_HOME=/var/lib/picoclaw"
+Environment="PICOCLAW_GATEWAY_HOST=0.0.0.0"
+Environment="PICOCLAW_HEARTBEAT_ENABLED=true"
+```
+
+### Resource Limits
+
+Limit resource usage:
+
+```ini
+[Service]
+# Limit memory to 50MB
+MemoryMax=50M
+MemoryHigh=40M
+
+# Limit CPU to 50% of one core
+CPUQuota=50%
+
+# Limit number of file descriptors
+LimitNOFILE=1024
+```
+
+### Restart Policy
+
+Customize restart behavior:
+
+```ini
+[Service]
+# Restart on any exit except clean stop
+Restart=on-failure
+
+# Wait 30 seconds before restart
+RestartSec=30
+
+# Limit restart attempts
+StartLimitBurst=5
+StartLimitIntervalSec=600
+```
+
+## Multiple Instances
+
+Run multiple PicoClaw instances with different configs:
+
+### 1. Create Template Service
+
+Create `/etc/systemd/system/picoclaw@.service`:
+
+```ini
+[Unit]
+Description=PicoClaw AI Assistant Gateway (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=picoclaw
+WorkingDirectory=/home/picoclaw
+ExecStart=/usr/local/bin/picoclaw gateway
+Restart=on-failure
+RestartSec=10
+Environment="PICOCLAW_CONFIG=/etc/picoclaw/%i.json"
+Environment="PICOCLAW_HOME=/var/lib/picoclaw/%i"
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 2. Create Instance Configs
+
+```bash
+# Create directories
+sudo mkdir -p /etc/picoclaw /var/lib/picoclaw/{prod,dev}
+
+# Copy configs
+sudo cp config.json /etc/picoclaw/prod.json
+sudo cp config-dev.json /etc/picoclaw/dev.json
+```
+
+### 3. Start Instances
+
+```bash
+# Start production instance
+sudo systemctl start picoclaw@prod
+
+# Start development instance
+sudo systemctl start picoclaw@dev
+
+# Enable both on boot
+sudo systemctl enable picoclaw@prod picoclaw@dev
+```
+
+## Monitoring
+
+### Health Checks
+
+Create a health check script:
+
+```bash
+#!/bin/bash
+# /usr/local/bin/picoclaw-health-check.sh
+
+if ! systemctl is-active --quiet picoclaw; then
+    echo "PicoClaw is not running!"
+    systemctl restart picoclaw
+fi
+```
+
+Make it executable:
+
+```bash
+sudo chmod +x /usr/local/bin/picoclaw-health-check.sh
+```
+
+Run via cron every 5 minutes:
+
+```bash
+sudo crontab -e
+# Add this line:
+*/5 * * * * /usr/local/bin/picoclaw-health-check.sh
+```
+
+### Prometheus Metrics
+
+If you're using Prometheus, you can monitor systemd services:
+
+```bash
+# Install node_exporter with systemd collector
+sudo apt install prometheus-node-exporter
+
+# Enable systemd collector
+sudo systemctl edit prometheus-node-exporter
+```
+
+Add:
+
+```ini
+[Service]
+Environment="ARGS=--collector.systemd --collector.systemd.unit-include=picoclaw.service"
+```
+
+## Troubleshooting
+
+### Service Won't Start
+
+Check the service status and logs:
+
+```bash
+sudo systemctl status picoclaw
+sudo journalctl -u picoclaw -n 50
+```
+
+Common issues:
+
+- **Config file missing**: Verify path in `Environment="PICOCLAW_CONFIG=..."`
+- **Permission denied**: Check file ownership and permissions
+- **Binary not found**: Verify `ExecStart` path
+
+### Service Stops Unexpectedly
+
+```bash
+# Check for crash logs
+sudo journalctl -u picoclaw --since "1 hour ago"
+
+# Check system resource limits
+sudo systemctl show picoclaw | grep -E "Memory|CPU"
+```
+
+### Configuration Changes Not Applied
+
+After editing the service file:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart picoclaw
+```
+
+### Port Already in Use
+
+If the gateway port (default 18790) is in use:
+
+```bash
+# Find what's using the port
+sudo lsof -i :18790
+
+# Change the port in config.json
+nano /home/picoclaw/.picoclaw/config.json
+```
+
+## Security Best Practices
+
+### File Permissions
+
+```bash
+# Secure config file (contains API keys)
+sudo chmod 600 /home/picoclaw/.picoclaw/config.json
+sudo chown picoclaw:picoclaw /home/picoclaw/.picoclaw/config.json
+
+# Secure workspace
+sudo chmod 750 /home/picoclaw/.picoclaw
+```
+
+### Systemd Security Features
+
+Add to `[Service]` section:
+
+```ini
+# Prevent privilege escalation
+NoNewPrivileges=true
+
+# Restrict file system access
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/picoclaw/.picoclaw
+
+# Use private /tmp
+PrivateTmp=true
+
+# Restrict network
+RestrictAddressFamilies=AF_INET AF_INET6
+
+# Restrict system calls
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+```
+
+## Next Steps
+
+- [Monitor with journalctl](https://www.freedesktop.org/software/systemd/man/journalctl.html)
+- [Advanced systemd configuration](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
+- [Configure Chat Apps](/chat-apps) - Connect messaging platforms
+- [Environment Variables](/configuration/environment-variables) - Customize runtime settings

@@ -1,80 +1,473 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: 'Get your PicoClaw AI assistant running in 2 minutes'
 ---
 
-## Get started in three steps
+# Quick Start
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will get you from zero to a working AI assistant in just a few minutes.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Prerequisites**: Make sure you have [installed PicoClaw](/installation) before proceeding.
 </Note>
+
+## Overview
+
+Getting started with PicoClaw is a simple 3-step process:
+
+<Steps>
+  <Step title="Initialize" icon="flag">
+    Run the onboarding command to create your configuration
+  </Step>
+  <Step title="Configure API Keys" icon="key">
+    Add your LLM provider API key to the config file
+  </Step>
+  <Step title="Start Chatting" icon="comments">
+    Talk to your AI assistant via CLI or chat apps
+  </Step>
+</Steps>
+
+## Step 1: Initialize
+
+Run the onboarding command to set up your workspace and configuration:
+
+```bash
+picoclaw onboard
+```
+
+This creates:
+- `~/.picoclaw/config.json` — Main configuration file
+- `~/.picoclaw/workspace/` — Working directory for the agent
+
+<Check>
+  You should see a success message indicating that the configuration was created.
+</Check>
+
+## Step 2: Configure API Keys
+
+PicoClaw needs an LLM provider to function. Open the configuration file:
+
+```bash
+vim ~/.picoclaw/config.json
+# Or use your preferred editor
+```
+
+### Basic Configuration Structure
+
+Here's what the config file looks like:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "max_tool_iterations": 20
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key",
+      "request_timeout": 300
+    }
+  ],
+  "tools": {
+    "web": {
+      "brave": {
+        "enabled": false,
+        "api_key": "YOUR_BRAVE_API_KEY",
+        "max_results": 5
+      },
+      "tavily": {
+        "enabled": false,
+        "api_key": "YOUR_TAVILY_API_KEY",
+        "max_results": 5
+      },
+      "duckduckgo": {
+        "enabled": true,
+        "max_results": 5
+      }
+    }
+  }
+}
+```
+
+### Configuration Breakdown
+
+<AccordionGroup>
+  <Accordion title="agents.defaults — Core Settings">
+    | Field | Description | Default |
+    |-------|-------------|----------|
+    | `workspace` | Working directory for the agent | `~/.picoclaw/workspace` |
+    | `model_name` | Name reference for the model to use | `gpt4` |
+    | `max_tokens` | Maximum tokens per response | `8192` |
+    | `temperature` | Creativity level (0.0-1.0) | `0.7` |
+    | `max_tool_iterations` | Max tool calls per conversation turn | `20` |
+  </Accordion>
+
+  <Accordion title="model_list — Provider Configuration">
+    The `model_list` array defines available LLM models:
+
+    ```json
+    {
+      "model_name": "gpt4",           // Friendly name to reference
+      "model": "openai/gpt-5.2",      // Provider/model format
+      "api_key": "your-api-key",      // API key for the provider
+      "request_timeout": 300           // Optional: timeout in seconds
+    }
+    ```
+
+    <Note>
+      `request_timeout` is optional. If omitted or set to `<= 0`, PicoClaw uses the default timeout (120s).
+    </Note>
+  </Accordion>
+
+  <Accordion title="tools.web — Search Configuration">
+    Web search is **optional** but enhances the assistant's capabilities:
+
+    - **Brave Search** (recommended): Best results, 2000 free queries/month
+    - **Tavily**: Optimized for AI agents, 1000 free queries/month
+    - **DuckDuckGo**: No API key required, free fallback option
+
+    You can enable multiple search providers simultaneously.
+  </Accordion>
+</AccordionGroup>
+
+### Get API Keys
+
+<CardGroup cols={2}>
+  <Card title="LLM Providers" icon="brain">
+    **Free Tier Options:**
+    - [OpenRouter](https://openrouter.ai/keys) — 200K tokens/month, multiple models
+    - [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) — 200K tokens/month, best for Chinese
+    - [Groq](https://console.groq.com) — Free tier, fast inference
+    - [Cerebras](https://cerebras.ai) — Free tier available
+
+    **Paid Options:**
+    - [Anthropic](https://console.anthropic.com) — Claude models
+    - [OpenAI](https://platform.openai.com) — GPT models
+    - [Gemini](https://aistudio.google.com/api-keys) — Google's models
+  </Card>
+  
+  <Card title="Web Search (Optional)" icon="magnifying-glass">
+    **Recommended:**
+    - [Brave Search](https://brave.com/search/api) — 2000 queries/month
+    - [Tavily](https://tavily.com) — 1000 queries/month
+
+    **Free Fallback:**
+    - DuckDuckGo — No key required (enabled by default)
+  </Card>
+</CardGroup>
+
+### Example Configurations
+
+<CodeGroup>
+```json OpenRouter (Recommended)
+{
+  "model_list": [
+    {
+      "model_name": "claude-sonnet",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-or-v1-your-openrouter-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "claude-sonnet"
+    }
+  }
+}
+```
+
+```json Zhipu (Chinese Users)
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "glm-4.7"
+    }
+  }
+}
+```
+
+```json OpenAI Direct
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-4o",
+      "api_key": "sk-your-openai-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "gpt4"
+    }
+  }
+}
+```
+
+```json Multiple Models
+{
+  "model_list": [
+    {
+      "model_name": "claude",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-your-key"
+    },
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-4o",
+      "api_key": "sk-openai-key"
+    },
+    {
+      "model_name": "local",
+      "model": "ollama/llama3"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "claude"  // Default to Claude
+    }
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+  See `config.example.json` in the PicoClaw repository for a complete configuration template with all available options.
+</Note>
+
+## Step 3: Start Chatting
+
+Once configured, you can start using PicoClaw immediately!
+
+### CLI Chat
+
+<CodeGroup>
+```bash One-shot Query
+# Ask a single question
+picoclaw agent -m "What is 2+2?"
+```
+
+```bash Interactive Mode
+# Start an interactive session
+picoclaw agent
+
+# Now you can chat continuously:
+# > What is the weather like today?
+# > Help me write a Python script
+# > Exit
+```
+
+```bash With Specific Model
+# Use a different model for this query
+picoclaw agent --model gpt4 -m "Explain quantum computing"
+```
+</CodeGroup>
+
+### Expected Output
+
+When you run your first command, you should see something like:
+
+```
+[INFO] agent: Starting agent
+[INFO] agent: Using model: gpt4 (openai/gpt-5.2)
+[INFO] agent: Loading workspace from ~/.picoclaw/workspace
+
+> What is 2+2?
+
+The answer is 4.
+
+[INFO] agent: Conversation complete (1 turn, 2 tool calls)
+```
+
+<Check>
+  Congratulations! Your PicoClaw AI assistant is now running.
+</Check>
+
+## Next Steps
+
+### Connect Chat Apps
+
+PicoClaw can integrate with multiple chat platforms:
+
+<CardGroup cols={3}>
+  <Card title="Telegram" icon="telegram">
+    Easy setup with just a bot token
+  </Card>
+  <Card title="Discord" icon="discord">
+    Simple bot token + intents configuration
+  </Card>
+  <Card title="WhatsApp" icon="whatsapp">
+    Native QR scan or bridge URL
+  </Card>
+  <Card title="QQ" icon="comment">
+    AppID + AppSecret
+  </Card>
+  <Card title="DingTalk" icon="comment-dots">
+    Client credentials setup
+  </Card>
+  <Card title="WeCom" icon="weixin">
+    Multiple integration modes
+  </Card>
+</CardGroup>
+
+To enable a chat app, add its configuration to `config.json`. Example for Telegram:
+
+<Steps>
+  <Step title="Create a Bot">
+    Open Telegram and message [@BotFather](https://t.me/BotFather):
+    
+    ```
+    /newbot
+    ```
+    
+    Follow the prompts and copy the bot token.
+  </Step>
+
+  <Step title="Get Your User ID">
+    Message [@userinfobot](https://t.me/userinfobot) on Telegram to get your user ID.
+  </Step>
+
+  <Step title="Add to Config">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "token": "YOUR_BOT_TOKEN",
+          "allow_from": ["YOUR_USER_ID"]
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Start Gateway">
+    Run the gateway to connect to chat platforms:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    Now message your Telegram bot!
+  </Step>
+</Steps>
+
+<Note>
+  See the full [Chat Apps Configuration](/configuration/chat-apps) guide for detailed setup instructions for all platforms.
+</Note>
+
+### Advanced Features
+
+<CardGroup cols={2}>
+  <Card title="Scheduled Tasks" icon="clock">
+    Set up periodic tasks and reminders with cron-like scheduling
+  </Card>
+  <Card title="Heartbeat" icon="heart-pulse">
+    Automatic periodic task execution from `HEARTBEAT.md`
+  </Card>
+  <Card title="Custom Skills" icon="puzzle-piece">
+    Extend functionality with custom skill modules
+  </Card>
+  <Card title="Security Sandbox" icon="shield">
+    Restrict agent access to specific directories
+  </Card>
+</CardGroup>
+
+### Common Commands
+
+| Command | Description |
+|---------|-------------|
+| `picoclaw onboard` | Initialize config & workspace |
+| `picoclaw agent -m "..."` | Chat with the agent (one-shot) |
+| `picoclaw agent` | Interactive chat mode |
+| `picoclaw gateway` | Start gateway for chat apps |
+| `picoclaw status` | Show current status |
+| `picoclaw cron list` | List scheduled jobs |
+| `picoclaw cron add ...` | Add a scheduled job |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title='"API key configuration issue"'>
+    This means you haven't configured an LLM provider API key yet, or the key is invalid.
+
+    **Solution:**
+    1. Get an API key from one of the [supported providers](#get-api-keys)
+    2. Add it to `~/.picoclaw/config.json` in the `model_list` section
+    3. Make sure the `model_name` in `agents.defaults` matches an entry in `model_list`
+  </Accordion>
+
+  <Accordion title='"Web search says API key configuration issue"'>
+    This is normal if you haven't configured a search API key. PicoClaw will provide helpful links for manual searching.
+
+    **To enable web search:**
+    - Get a free [Brave Search API key](https://brave.com/search/api) (2000 queries/month)
+    - Or enable DuckDuckGo (no key required):
+
+    ```json
+    {
+      "tools": {
+        "web": {
+          "duckduckgo": {
+            "enabled": true,
+            "max_results": 5
+          }
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title='"Content filtering errors"'>
+    Some providers (like Zhipu) have content filtering that may block certain queries.
+
+    **Solution:**
+    - Try rephrasing your query
+    - Use a different model/provider
+    - Check the provider's content policy
+  </Accordion>
+
+  <Accordion title='Telegram bot: "Conflict: terminated by other getUpdates"'>
+    This happens when multiple instances of the bot are running.
+
+    **Solution:**
+    - Make sure only one `picoclaw gateway` is running at a time
+    - Kill any existing gateway processes: `pkill picoclaw`
+  </Accordion>
+</AccordionGroup>
+
+## What's Next?
+
+<CardGroup cols={2}>
+  <Card title="Full Configuration Guide" icon="gear" href="/configuration/overview">
+    Explore all configuration options and advanced features
+  </Card>
+  <Card title="Chat App Integration" icon="comments" href="/channels/overview">
+    Connect Telegram, Discord, WhatsApp, and more
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/commands/agent">
+    Complete command-line interface documentation
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/sipeed/picoclaw">
+    View source code and contribute
+  </Card>
+</CardGroup>
+
+<Check>
+  You're all set! Enjoy your ultra-lightweight AI assistant.
+</Check>

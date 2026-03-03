@@ -1,0 +1,414 @@
+---
+title: Discord Channel
+description: Connect PicoClaw to Discord servers and channels
+---
+
+Discord integration allows your PicoClaw assistant to interact in Discord servers and channels. Setup requires creating a bot application and enabling proper intents.
+
+## Why Discord?
+
+- **Community Focused**: Perfect for team collaboration and communities
+- **Rich Permissions**: Fine-grained control over bot capabilities
+- **Group Support**: Configurable mention-only or always-respond modes
+- **No Webhooks**: Uses WebSocket Gateway (no server setup needed)
+
+## Prerequisites
+
+- A Discord account
+- Server admin permissions (to invite the bot)
+- PicoClaw installed with LLM provider configured
+- ~10 minutes for setup
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Create a Discord Application">
+    1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+    2. Click **New Application**
+    3. Give it a name (e.g., "PicoClaw Bot")
+    4. Click **Create**
+  </Step>
+
+  <Step title="Create a Bot User">
+    1. In your application, navigate to **Bot** in the left sidebar
+    2. Click **Add Bot**
+    3. Confirm by clicking **Yes, do it!**
+    4. Under the **TOKEN** section, click **Reset Token** and copy it
+
+    <Warning>
+    Keep this token secure! Anyone with access can control your bot. Never share it publicly or commit it to version control.
+    </Warning>
+  </Step>
+
+  <Step title="Enable Privileged Intents">
+    Still in the **Bot** settings page:
+
+    1. Scroll down to **Privileged Gateway Intents**
+    2. Enable **MESSAGE CONTENT INTENT** (required to read messages)
+    3. (Optional) Enable **SERVER MEMBERS INTENT** if using member-based allow lists
+    4. Click **Save Changes**
+
+    <Note>
+    MESSAGE CONTENT INTENT is mandatory for the bot to see message content. Without it, the bot will connect but won't receive messages.
+    </Note>
+  </Step>
+
+  <Step title="Get Your User ID">
+    To restrict bot access:
+
+    1. Open Discord Settings → **Advanced**
+    2. Enable **Developer Mode**
+    3. Right-click your avatar or username
+    4. Select **Copy User ID**
+    5. Save this ID for the configuration
+
+    <Tip>
+    You can copy IDs of other users the same way to add them to `allow_from`.
+    </Tip>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "discord": {
+          "enabled": true,
+          "token": "YOUR_BOT_TOKEN",
+          "allow_from": ["YOUR_USER_ID"]
+        }
+      }
+    }
+    ```
+
+    Replace:
+    - `token`: Your bot token from the Developer Portal
+    - `allow_from`: Your Discord user ID (or empty array `[]` for public access)
+  </Step>
+
+  <Step title="Invite the Bot to Your Server">
+    1. Go back to your application in the Developer Portal
+    2. Navigate to **OAuth2** → **URL Generator**
+    3. Under **SCOPES**, select:
+       - `bot`
+    4. Under **BOT PERMISSIONS**, select:
+       - `Send Messages`
+       - `Read Message History`
+       - (Optional) `Attach Files` if you want the bot to send files
+       - (Optional) `Add Reactions` for reaction features
+    5. Copy the generated URL at the bottom
+    6. Open the URL in your browser
+    7. Select your server and click **Authorize**
+
+    <Note>
+    You need **Manage Server** permission on the Discord server to invite bots.
+    </Note>
+  </Step>
+
+  <Step title="Start the Gateway">
+    Run PicoClaw Gateway:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    You should see:
+    ```
+    [INFO] discord: Connected to Discord Gateway
+    ```
+  </Step>
+
+  <Step title="Test Your Bot">
+    1. Go to your Discord server
+    2. Send a message in a channel where the bot has access
+    3. The bot should respond with AI-generated replies
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Basic Configuration
+
+```json
+{
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "allow_from": ["USER_ID_1", "USER_ID_2"]
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Enable Discord channel |
+| `token` | string | Yes | Bot token from Discord Developer Portal |
+| `allow_from` | array | No | List of allowed Discord user IDs (empty = allow all) |
+| `group_trigger` | object | No | Configure group chat trigger behavior |
+
+### Group Trigger Configuration
+
+By default, the bot responds to **all messages** in channels. Use `group_trigger` to change this behavior:
+
+#### Mention-Only Mode
+
+Respond only when the bot is @mentioned:
+
+```json
+{
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "group_trigger": {
+        "mention_only": true
+      }
+    }
+  }
+}
+```
+
+Now the bot only responds when users type `@YourBotName message`.
+
+#### Prefix-Based Triggers
+
+Respond to messages starting with specific prefixes:
+
+```json
+{
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "group_trigger": {
+        "prefixes": ["!bot", "!ai"]
+      }
+    }
+  }
+}
+```
+
+The bot responds to:
+- `!bot Hello there`
+- `!ai What's the weather?`
+
+But ignores:
+- `Hello there` (no prefix)
+
+#### Combined Configuration
+
+Use both mention and prefix triggers:
+
+```json
+{
+  "group_trigger": {
+    "mention_only": true,
+    "prefixes": ["!bot"]
+  }
+}
+```
+
+Bot responds to:
+- `@YourBotName hello` (mention)
+- `!bot hello` (prefix)
+
+### Access Control
+
+**Allow specific users:**
+```json
+{
+  "allow_from": ["123456789012345678", "876543210987654321"]
+}
+```
+
+**Allow everyone (public bot):**
+```json
+{
+  "allow_from": []
+}
+```
+
+<Warning>
+Public Discord bots can be abused if not properly rate-limited. Consider:
+- Enabling `mention_only` mode in public servers
+- Using prefix triggers to avoid spam
+- Monitoring API costs from your LLM provider
+</Warning>
+
+## Features
+
+### Text Messages
+
+The bot processes text messages and maintains conversation context per user and channel.
+
+### Direct Messages
+
+Users can DM the bot directly for private conversations (if `allow_from` permits).
+
+### Multi-Server Support
+
+One bot instance can serve multiple Discord servers simultaneously. Each server/channel maintains independent conversation context.
+
+### Channel Permissions
+
+The bot respects Discord channel permissions. It will only respond in channels where it can:
+- Read messages
+- Send messages
+- Read message history
+
+## Troubleshooting
+
+### Bot connects but doesn't respond
+
+**Cause**: Missing MESSAGE CONTENT INTENT
+
+**Solution**:
+1. Go to Discord Developer Portal → Your App → Bot
+2. Scroll to **Privileged Gateway Intents**
+3. Enable **MESSAGE CONTENT INTENT**
+4. Click **Save Changes**
+5. Restart `picoclaw gateway`
+
+### "Missing Access" or "Missing Permissions" errors
+
+**Cause**: Bot lacks required permissions in the channel
+
+**Solution**:
+1. Check the bot's role permissions in server settings
+2. Ensure the bot role has:
+   - Read Messages
+   - Send Messages
+   - Read Message History
+3. Check channel-specific permission overrides
+
+### Bot is online but doesn't see messages
+
+**Possible causes**:
+
+1. **Intent not enabled**: Enable MESSAGE CONTENT INTENT (see above)
+2. **Allow list**: Check if your user ID is in `allow_from`
+3. **Wrong channel**: Bot might not have access to the channel
+4. **Group trigger**: Check if `mention_only` is enabled and you forgot to @mention
+
+### "Invalid Token" error
+
+**Cause**: Incorrect or expired bot token
+
+**Solution**:
+1. Go to Developer Portal → Your App → Bot
+2. Click **Reset Token**
+3. Copy the new token
+4. Update `config.json` with the new token
+5. Restart gateway
+
+### Check Gateway logs
+
+```bash
+picoclaw gateway
+```
+
+Look for Discord-related errors in the output.
+
+## Advanced Configuration
+
+### Per-Server Settings
+
+Currently, PicoClaw uses global configuration for all Discord servers. To have different behavior per server, you would need to run multiple bot instances with different tokens.
+
+### Multiple Bots
+
+You can run multiple Discord bots by:
+
+1. Creating multiple applications in Developer Portal
+2. Using different configuration files:
+
+```bash
+PICOCLAW_CONFIG=/path/to/bot1-config.json picoclaw gateway
+PICOCLAW_CONFIG=/path/to/bot2-config.json picoclaw gateway
+```
+
+### Using with Docker
+
+Docker deployments work the same way:
+
+```bash
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+Make sure your `docker/data/config.json` has the Discord configuration.
+
+## Privacy & Security
+
+<Warning>
+**Security Best Practices**:
+
+- Never share your bot token
+- Never commit tokens to git repositories
+- Use `allow_from` to restrict access for personal bots
+- Regenerate token immediately if compromised
+- Monitor bot activity in Discord's Developer Portal
+- Review audit logs for unexpected behavior
+</Warning>
+
+### Message Privacy
+
+Discord bots can see:
+- All messages in channels where they have access
+- Message history (if Read Message History is enabled)
+- User IDs, usernames, and avatars
+- Server information
+
+Be mindful of:
+- What data your LLM provider logs
+- What conversation context is stored locally
+- Privacy expectations of server members
+
+## Complete Example
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key"
+    }
+  ],
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "MTIzNDU2Nzg5MDEyMzQ1Njc4.GaBcDe.FgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRs",
+      "allow_from": ["123456789012345678"],
+      "group_trigger": {
+        "mention_only": true
+      }
+    }
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Telegram Channel" icon="telegram" href="/channels/telegram">
+    Easier alternative with simpler setup
+  </Card>
+  <Card title="WhatsApp Channel" icon="whatsapp" href="/channels/whatsapp">
+    Connect via WhatsApp
+  </Card>
+  <Card title="Channel Overview" icon="comments" href="/channels/overview">
+    Compare all available channels
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Advanced configuration options
+  </Card>
+</CardGroup>

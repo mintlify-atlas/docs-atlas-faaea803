@@ -1,0 +1,655 @@
+---
+title: Security
+description: Understanding PicoClaw's security model and sandbox protection
+---
+
+## Overview
+
+PicoClaw implements a multi-layered security architecture to protect your system while allowing AI agents to perform useful tasks. The security model focuses on workspace isolation, command filtering, and path validation.
+
+## Workspace Sandbox
+
+The primary security mechanism is workspace restriction, which isolates agent file and command access to a configured directory.
+
+### Default Configuration
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "restrict_to_workspace": true  // Default: enabled
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `workspace` | string | `~/.picoclaw/workspace` | Agent workspace directory |
+| `restrict_to_workspace` | bool | `true` | Sandbox all file/shell operations |
+| `allow_read_outside_workspace` | bool | `false` | Allow reading outside workspace |
+
+### Protected Tools
+
+When `restrict_to_workspace: true`, the following tools are sandboxed:
+
+| Tool | Function | Restriction |
+|------|----------|-------------|
+| `read_file` | Read files | Only files within workspace |
+| `write_file` | Write files | Only files within workspace |
+| `list_dir` | List directories | Only directories within workspace |
+| `edit_file` | Edit files | Only files within workspace |
+| `append_file` | Append to files | Only files within workspace |
+| `exec` | Execute commands | Command paths validated against workspace |
+
+### How Workspace Restriction Works
+
+#### Path Resolution
+
+All file paths are resolved and validated before access:
+
+```
+User input: "./data/config.json"
+         ↓
+Resolve relative to workspace
+         ↓
+Absolute path: "/home/user/.picoclaw/workspace/data/config.json"
+         ↓
+Validate: Is within workspace?
+         ↓
+Yes → Allow access
+No  → Deny with error
+```
+
+#### Implementation
+
+From `pkg/tools/filesystem.go`:
+
+```go
+func validatePath(path, workspace string, restrict bool) (string, error) {
+    // 1. Resolve to absolute path
+    absPath := filepath.Abs(filepath.Join(workspace, path))
+    
+    // 2. Check if restrict is enabled
+    if !restrict {
+        return absPath, nil
+    }
+    
+    // 3. Validate path is within workspace
+    if !isWithinWorkspace(absPath, workspace) {
+        return "", fmt.Errorf("access denied: path is outside the workspace")
+    }
+    
+    // 4. Check for symlink escapes
+    resolved, err := filepath.EvalSymlinks(absPath)
+    if err == nil && !isWithinWorkspace(resolved, workspace) {
+        return "", fmt.Errorf("access denied: symlink resolves outside workspace")
+    }
+    
+    return absPath, nil
+}
+```
+
+### Sandbox Implementations
+
+#### sandboxFs (Go 1.23+)
+
+Uses `os.Root` for kernel-level path isolation:
+
+```go
+type sandboxFs struct {
+    workspace string
+}
+
+func (r *sandboxFs) ReadFile(path string) ([]byte, error) {
+    root, err := os.OpenRoot(r.workspace)
+    if err != nil {
+        return nil, err
+    }
+    defer root.Close()
+    
+    // All operations scoped to root
+    return root.ReadFile(path)
+}
+```
+
+**Security:**
+- Kernel-enforced path isolation
+- Immune to `../` traversal
+- Symlinks cannot escape root
+- No `chroot` required
+
+#### hostFs (Unrestricted)
+
+Direct filesystem access when `restrict_to_workspace: false`:
+
+```go
+type hostFs struct{}
+
+func (h *hostFs) ReadFile(path string) ([]byte, error) {
+    return os.ReadFile(path)  // No restrictions
+}
+```
+
+**⚠️ Warning**: Only disable restrictions in controlled environments.
+
+## Path Whitelisting
+
+Allow specific paths outside workspace using regex patterns.
+
+### Configuration
+
+```json
+{
+  "tools": {
+    "allow_read_paths": [
+      "^/etc/hosts$",
+      "^/proc/cpuinfo$",
+      "^/sys/class/net/[^/]+/address$"
+    ],
+    "allow_write_paths": [
+      "^/tmp/picoclaw-.*\.txt$"
+    ]
+  }
+}
+```
+
+### Pattern Syntax
+
+Regular expressions matched against absolute paths:
+
+| Pattern | Matches | Examples |
+|---------|---------|----------|
+| `^/etc/hosts$` | Exact path | `/etc/hosts` |
+| `^/proc/.*` | Prefix | `/proc/cpuinfo`, `/proc/meminfo` |
+| `^/tmp/.*\.log$` | Suffix | `/tmp/app.log`, `/tmp/error.log` |
+| `^/sys/class/net/[^/]+/address$` | Pattern | `/sys/class/net/eth0/address` |
+
+### whitelistFs Implementation
+
+Combines sandbox with selective host access:
+
+```go
+type whitelistFs struct {
+    sandbox  *sandboxFs
+    host     hostFs
+    patterns []*regexp.Regexp
+}
+
+func (w *whitelistFs) ReadFile(path string) ([]byte, error) {
+    // Check if path matches whitelist
+    if w.matches(path) {
+        return w.host.ReadFile(path)  // Host access
+    }
+    return w.sandbox.ReadFile(path)  // Sandboxed access
+}
+```
+
+### Use Cases
+
+**System monitoring:**
+```json
+{
+  "allow_read_paths": [
+    "^/proc/loadavg$",
+    "^/proc/meminfo$",
+    "^/proc/cpuinfo$"
+  ]
+}
+```
+
+**Network config:**
+```json
+{
+  "allow_read_paths": [
+    "^/etc/resolv\.conf$",
+    "^/etc/hosts$"
+  ]
+}
+```
+
+**Temporary files:**
+```json
+{
+  "allow_write_paths": [
+    "^/tmp/picoclaw-[0-9a-f]{8}.*$"
+  ]
+}
+```
+
+## Exec Tool Security
+
+The `exec` tool has multiple layers of protection to prevent dangerous commands.
+
+### 1. Dangerous Pattern Blocking
+
+From `pkg/tools/shell.go`, these patterns are blocked by default:
+
+#### Destructive Commands
+
+```regex
+\brm\s+-[rf]{1,2}\b          # rm -rf, rm -r, rm -f
+\bdel\s+/[fq]\b              # del /f, del /q (Windows)
+\brmdir\s+/s\b               # rmdir /s (Windows)
+\b(format|mkfs|diskpart)\b\s # Disk formatting
+\bdd\s+if=                    # dd (disk imaging)
+>/dev/(sd[a-z]|hd[a-z]|...)  # Direct disk writes
+```
+
+#### System Control
+
+```regex
+\b(shutdown|reboot|poweroff)\b  # System shutdown
+```
+
+#### Shell Injection
+
+```regex
+:\(\)\s*\{.*\};\s*:      # Fork bomb
+\$\([^)]+\)                # Command substitution
+\$\{[^}]+\}                # Variable expansion
+`[^`]+`                    # Backtick execution
+\|\s*sh\b                  # Pipe to shell
+\|\s*bash\b
+```
+
+#### Privilege Escalation
+
+```regex
+\bsudo\b                   # Sudo
+\bchmod\s+[0-7]{3,4}\b     # chmod
+\bchown\b                  # chown
+```
+
+#### Process Control
+
+```regex
+\bpkill\b                  # pkill
+\bkillall\b                # killall
+\bkill\s+-[9]\b            # kill -9
+```
+
+#### Remote Execution
+
+```regex
+\bcurl\b.*\|\s*(sh|bash)   # curl | sh
+\bwget\b.*\|\s*(sh|bash)   # wget | sh
+\bssh\b.*@                 # SSH connections
+```
+
+#### Package Managers
+
+```regex
+\bapt\s+(install|remove|purge)\b
+\byum\s+(install|remove)\b
+\bdnf\s+(install|remove)\b
+\bnpm\s+install\s+-g\b
+\bpip\s+install\s+--user\b
+```
+
+#### Containers
+
+```regex
+\bdocker\s+run\b
+\bdocker\s+exec\b
+```
+
+#### Version Control
+
+```regex
+\bgit\s+push\b
+\bgit\s+force\b
+```
+
+### 2. Workspace Path Validation
+
+When `restrict_to_workspace: true`, absolute paths in commands are validated:
+
+```bash
+# Workspace: /home/user/.picoclaw/workspace
+
+# Allowed:
+ls ./data                           # OK (relative)
+cat /home/user/.picoclaw/workspace/file.txt  # OK (within workspace)
+echo "test" > output.txt            # OK (relative)
+
+# Blocked:
+cat /etc/passwd                     # BLOCKED (outside workspace)
+ls /home/user/documents             # BLOCKED (outside workspace)
+cp ../../../etc/passwd .            # BLOCKED (path traversal)
+```
+
+**Implementation:**
+
+```go
+func (t *ExecTool) guardCommand(command, cwd string) string {
+    // Extract absolute paths from command
+    matches := absolutePathPattern.FindAllString(command, -1)
+    
+    for _, path := range matches {
+        // Skip safe paths
+        if safePaths[path] {
+            continue
+        }
+        
+        // Validate path is within workspace
+        rel, err := filepath.Rel(cwd, path)
+        if err != nil || strings.HasPrefix(rel, "..") {
+            return "Command blocked by safety guard (path outside working dir)"
+        }
+    }
+    
+    return ""  // OK
+}
+```
+
+### 3. Safe Paths
+
+These kernel pseudo-devices are always allowed:
+
+```go
+var safePaths = map[string]bool{
+    "/dev/null":    true,
+    "/dev/zero":    true,
+    "/dev/random":  true,
+    "/dev/urandom": true,
+    "/dev/stdin":   true,
+    "/dev/stdout":  true,
+    "/dev/stderr":  true,
+}
+```
+
+### 4. Custom Patterns
+
+Override or extend default patterns:
+
+```json
+{
+  "tools": {
+    "exec": {
+      "enable_deny_patterns": true,
+      "custom_deny_patterns": [
+        "\\bcurl\\b.*--upload-file",
+        "\\bwget\\b.*-O\\s+/etc/"
+      ],
+      "custom_allow_patterns": [
+        "^git\\s+push\\s+origin\\s+main$"
+      ]
+    }
+  }
+}
+```
+
+**Behavior:**
+- `custom_allow_patterns`: Bypass deny patterns for specific commands
+- `custom_deny_patterns`: Additional blocks beyond defaults
+- `enable_deny_patterns: false`: Disable all pattern checks (⚠️ dangerous)
+
+### 5. Execution Timeout
+
+Prevents infinite execution:
+
+```go
+type ExecTool struct {
+    timeout time.Duration  // Default: 60s
+}
+```
+
+**Configuration:**
+```json
+{
+  "tools": {
+    "cron": {
+      "exec_timeout_minutes": 5  // 5 minutes for scheduled tasks
+    }
+  }
+}
+```
+
+### 6. Process Tree Termination
+
+Kills child processes on timeout (Unix):
+
+```go
+func terminateProcessTree(cmd *exec.Cmd) error {
+    // Send SIGTERM to process group
+    pgid, err := syscall.Getpgid(cmd.Process.Pid)
+    syscall.Kill(-pgid, syscall.SIGTERM)
+    
+    // Wait 2s, then SIGKILL if still running
+    time.Sleep(2 * time.Second)
+    syscall.Kill(-pgid, syscall.SIGKILL)
+}
+```
+
+## Security Boundaries
+
+### Consistent Across Execution Paths
+
+The same security restrictions apply everywhere:
+
+| Execution Path | Workspace Restriction | Exec Guards |
+|----------------|----------------------|-------------|
+| Main Agent | ✅ | ✅ |
+| Subagent (spawn) | ✅ Inherited | ✅ Inherited |
+| Heartbeat tasks | ✅ Inherited | ✅ Inherited |
+| Cron jobs | ✅ Inherited | ✅ Inherited |
+
+**No bypass possible** through subagents or scheduled tasks.
+
+### Multi-Agent Isolation
+
+Each agent has its own workspace:
+
+```
+~/.picoclaw/workspace/          # Agent: main
+~/.picoclaw/workspace-researcher/  # Agent: researcher
+~/.picoclaw/workspace-coder/    # Agent: coder
+```
+
+**Isolation:**
+- File operations scoped to agent workspace
+- Sessions isolated per agent
+- No cross-agent file access
+
+## Error Messages
+
+### File Access Denied
+
+```
+[ERROR] tool: Tool execution failed
+{tool=read_file, error=access denied: path is outside the workspace}
+```
+
+```
+[ERROR] tool: Tool execution failed
+{tool=write_file, error=access denied: symlink resolves outside workspace}
+```
+
+### Command Blocked
+
+```
+[ERROR] tool: Tool execution failed
+{tool=exec, error=Command blocked by safety guard (dangerous pattern detected)}
+```
+
+```
+[ERROR] tool: Tool execution failed
+{tool=exec, error=Command blocked by safety guard (path outside working dir)}
+```
+
+### Path Traversal
+
+```
+[ERROR] tool: Tool execution failed
+{tool=read_file, error=access denied: path is outside the workspace}
+```
+
+## Disabling Restrictions (⚠️ Dangerous)
+
+### Method 1: Config File
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "restrict_to_workspace": false
+    }
+  }
+}
+```
+
+### Method 2: Environment Variable
+
+```bash
+export PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE=false
+picoclaw agent
+```
+
+### Method 3: Disable Exec Patterns Only
+
+```json
+{
+  "tools": {
+    "exec": {
+      "enable_deny_patterns": false
+    }
+  }
+}
+```
+
+**⚠️ Security Warning:**
+
+Disabling restrictions allows the agent to:
+- Access any file on your system
+- Execute any command
+- Modify system files
+- Install packages
+- Access sensitive data
+
+**Only disable in:**
+- Isolated development environments
+- Containers with limited host access
+- Trusted, controlled scenarios
+
+## Best Practices
+
+### 1. Keep Sandbox Enabled
+
+Always use `restrict_to_workspace: true` unless absolutely necessary.
+
+### 2. Use Path Whitelisting
+
+Instead of disabling sandbox, whitelist specific paths:
+
+```json
+{
+  "tools": {
+    "allow_read_paths": ["^/etc/hosts$"]
+  }
+}
+```
+
+### 3. Review Custom Patterns
+
+Carefully test custom allow patterns:
+
+```json
+{
+  "tools": {
+    "exec": {
+      "custom_allow_patterns": [
+        "^git\\s+push\\s+origin\\s+(main|develop)$"  // Specific branches only
+      ]
+    }
+  }
+}
+```
+
+### 4. Use Separate Workspaces
+
+Isolate agents by task:
+
+```json
+{
+  "agents": {
+    "agents": [
+      {"id": "main", "workspace": "~/.picoclaw/workspace"},
+      {"id": "untrusted", "workspace": "/tmp/picoclaw-sandbox"}
+    ]
+  }
+}
+```
+
+### 5. Monitor Agent Actions
+
+Enable debug logging to audit agent commands:
+
+```bash
+export PICOCLAW_LOG_LEVEL=debug
+picoclaw agent
+```
+
+### 6. Limit Tool Access
+
+Disable unnecessary tools for specific agents:
+
+```json
+{
+  "agents": {
+    "agents": [
+      {
+        "id": "readonly",
+        "tools": {
+          "disabled": ["write_file", "exec", "edit_file"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### 7. Container Isolation
+
+Run PicoClaw in containers with limited host access:
+
+```dockerfile
+FROM golang:1.23
+RUN useradd -m -s /bin/bash picoclaw
+USER picoclaw
+WORKDIR /home/picoclaw
+COPY picoclaw /usr/local/bin/
+CMD ["picoclaw", "gateway"]
+```
+
+### 8. Principle of Least Privilege
+
+- Start with full restrictions
+- Add whitelisted paths as needed
+- Document all exceptions
+- Review periodically
+
+## Security Checklist
+
+- [ ] `restrict_to_workspace: true` enabled
+- [ ] Workspace directory has appropriate permissions (750 or stricter)
+- [ ] `allow_read_paths` / `allow_write_paths` minimal and documented
+- [ ] `enable_deny_patterns: true` for exec tool
+- [ ] Custom allow patterns tested and necessary
+- [ ] Agent workspaces isolated per agent
+- [ ] Debug logging enabled for audit trail
+- [ ] Running in container or restricted environment
+- [ ] Regular security review of agent actions
+- [ ] Backup of workspace data
+
+## Reporting Security Issues
+
+If you discover a security vulnerability in PicoClaw:
+
+1. **Do not** open a public issue
+2. Email security details to the maintainers
+3. Include reproduction steps
+4. Wait for confirmation before public disclosure
+
+See project README for contact information.

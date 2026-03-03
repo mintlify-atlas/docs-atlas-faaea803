@@ -1,0 +1,545 @@
+---
+title: WeCom Channel
+description: Connect PicoClaw to WeCom (企业微信) with multiple integration modes
+---
+
+WeCom (企业微信, Enterprise WeChat) is Tencent's enterprise communication platform. PicoClaw supports **three integration modes**: WeCom Bot, WeCom App, and WeCom AI Bot.
+
+## Integration Modes
+
+Choose the mode that best fits your needs:
+
+| Mode | Setup Difficulty | Features | Use Case |
+| --- | --- | --- | --- |
+| **WeCom Bot** | Easy | Group chat webhooks | Quick group bot setup |
+| **WeCom App** | Medium | Custom app, private chat, proactive messaging | Full-featured enterprise integration |
+| **WeCom AI Bot** | Medium | Official AI bot, streaming replies, group & private | Production-ready AI assistant |
+
+<Note>
+All WeCom webhook-based integrations use the shared Gateway server on port 18790 (configurable via `gateway.host` and `gateway.port`).
+</Note>
+
+## Mode 1: WeCom Bot (Group Webhook)
+
+Simplest setup for group chat integration.
+
+### Prerequisites
+
+- WeCom account with group admin access
+- ~5 minutes for setup
+
+### Setup Instructions
+
+<Steps>
+  <Step title="Create a Group Bot">
+    1. Open WeCom desktop or mobile app
+    2. Go to a group chat
+    3. Tap **Group Settings** → **Group Bots** → **Add Bot**
+    4. Name your bot (e.g., "PicoClaw Assistant")
+    5. Copy the **Webhook URL** (format: `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx`)
+
+    <Tip>
+    Each group needs its own bot. The webhook URL is specific to that group.
+    </Tip>
+  </Step>
+
+  <Step title="Get Token and AES Key">
+    WeCom bots require verification:
+
+    1. In WeCom Admin Console → **App Management** → **Group Bots**
+    2. Find your bot and configure **Receive Messages**
+    3. Copy the **Token** and **EncodingAESKey**
+
+    <Note>
+    If you don't need to receive messages (only send), you can skip this step. However, for interactive bots, you need both credentials.
+    </Note>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "gateway": {
+        "host": "127.0.0.1",
+        "port": 18790
+      },
+      "channels": {
+        "wecom": {
+          "enabled": true,
+          "token": "YOUR_TOKEN",
+          "encoding_aes_key": "YOUR_ENCODING_AES_KEY",
+          "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY",
+          "webhook_path": "/webhook/wecom",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    <Warning>
+    The `webhook_path` is where PicoClaw receives messages from WeCom. You need to configure this URL in WeCom Admin Console.
+    </Warning>
+  </Step>
+
+  <Step title="Set Up Webhook URL in WeCom">
+    1. Go to WeCom Admin Console → Group Bot settings
+    2. Set **Receive Message URL** to: `http://your-server:18790/webhook/wecom`
+    3. Use HTTPS with reverse proxy for production
+
+    <Tip>
+    For testing, use ngrok: `ngrok http 18790` and use the HTTPS URL.
+    </Tip>
+  </Step>
+
+  <Step title="Start Gateway">
+    Run PicoClaw:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    You should see:
+    ```
+    [INFO] gateway: Starting HTTP server on 127.0.0.1:18790
+    [INFO] wecom: WeCom channel initialized
+    ```
+  </Step>
+
+  <Step title="Test in Group">
+    1. Send a message in the group chat with the bot
+    2. The bot should respond with AI-generated replies
+  </Step>
+</Steps>
+
+### WeCom Bot Configuration
+
+```json
+{
+  "channels": {
+    "wecom": {
+      "enabled": true,
+      "token": "YOUR_TOKEN",
+      "encoding_aes_key": "YOUR_ENCODING_AES_KEY",
+      "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx",
+      "webhook_path": "/webhook/wecom",
+      "allow_from": []
+    }
+  }
+}
+```
+
+## Mode 2: WeCom App (Custom Application)
+
+Full-featured integration with custom app capabilities.
+
+### Prerequisites
+
+- WeCom admin account
+- ~20 minutes for setup
+
+### Setup Instructions
+
+<Steps>
+  <Step title="Create a WeCom App">
+    1. Go to [WeCom Admin Console](https://work.weixin.qq.com/)
+    2. Navigate to **App Management** → **Create App**
+    3. Fill in:
+       - App name
+       - Logo
+       - Description
+    4. Submit and wait for approval
+  </Step>
+
+  <Step title="Get App Credentials">
+    After approval:
+
+    1. Go to **My Company** page, copy **CorpID**
+    2. Open your app, copy **AgentId**
+    3. Copy **Secret**
+
+    <Warning>
+    Keep CorpID, AgentId, and Secret secure! They grant full access to your app.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Receive Messages">
+    In app settings:
+
+    1. Click **Receive Messages** → **Set API**
+    2. Set URL to: `http://your-server:18790/webhook/wecom-app`
+    3. Generate **Token**
+    4. Generate **EncodingAESKey** (click "Random Generate")
+    5. Click **Save**
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "wecom_app": {
+          "enabled": true,
+          "corp_id": "wwxxxxxxxxxxxxxxxx",
+          "corp_secret": "YOUR_CORP_SECRET",
+          "agent_id": 1000002,
+          "token": "YOUR_TOKEN",
+          "encoding_aes_key": "YOUR_ENCODING_AES_KEY",
+          "webhook_path": "/webhook/wecom-app",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    | Field | Description |
+    | --- | --- |
+    | `corp_id` | Your organization's CorpID |
+    | `corp_secret` | App's Secret |
+    | `agent_id` | App's AgentId (numeric) |
+    | `token` | Token for message verification |
+    | `encoding_aes_key` | 43-character AES key |
+    | `webhook_path` | Webhook endpoint path |
+  </Step>
+
+  <Step title="Start Gateway">
+    ```bash
+    picoclaw gateway
+    ```
+
+    Verify connection in logs:
+    ```
+    [INFO] wecom_app: WeCom App initialized
+    [INFO] wecom_app: AgentId: 1000002
+    ```
+  </Step>
+
+  <Step title="Test the App">
+    1. Open WeCom
+    2. Go to **Workbench** → Find your app
+    3. Send a message
+    4. Bot should respond
+  </Step>
+</Steps>
+
+### WeCom App Configuration
+
+```json
+{
+  "channels": {
+    "wecom_app": {
+      "enabled": true,
+      "corp_id": "wwxxxxxxxxxxxxxxxx",
+      "corp_secret": "YOUR_CORP_SECRET",
+      "agent_id": 1000002,
+      "token": "YOUR_TOKEN",
+      "encoding_aes_key": "YOUR_ENCODING_AES_KEY",
+      "webhook_path": "/webhook/wecom-app",
+      "allow_from": []
+    }
+  }
+}
+```
+
+## Mode 3: WeCom AI Bot (Official AI Integration)
+
+Official AI bot with streaming support and advanced features.
+
+### Why AI Bot Mode?
+
+- **Streaming replies**: Real-time response streaming
+- **No timeout issues**: Uses streaming pull protocol
+- **Group & private chat**: Supports both
+- **Official integration**: Built for AI assistants
+
+### Prerequisites
+
+- WeCom admin account
+- AI Bot feature enabled (may require WeCom Pro plan)
+- ~20 minutes for setup
+
+### Setup Instructions
+
+<Steps>
+  <Step title="Create an AI Bot">
+    1. Go to WeCom Admin Console → **App Management** → **AI Bot**
+    2. Click **Create AI Bot**
+    3. Fill in:
+       - Bot name
+       - Description
+       - Avatar
+    4. Submit for approval
+  </Step>
+
+  <Step title="Configure Callback URL">
+    After approval:
+
+    1. In AI Bot settings, find **Callback Configuration**
+    2. Set URL to: `http://your-server:18790/webhook/wecom-aibot`
+    3. Copy **Token**
+    4. Click **Random Generate** for **EncodingAESKey**
+    5. Copy the 43-character key
+    6. Click **Save**
+
+    <Note>
+    WeCom AI Bot requires HTTPS for production. Use a reverse proxy or deploy on a server with SSL.
+    </Note>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "wecom_aibot": {
+          "enabled": true,
+          "token": "YOUR_TOKEN",
+          "encoding_aes_key": "YOUR_43_CHAR_ENCODING_AES_KEY",
+          "webhook_path": "/webhook/wecom-aibot",
+          "allow_from": [],
+          "welcome_message": "Hello! How can I help you?"
+        }
+      }
+    }
+    ```
+
+    | Field | Description |
+    | --- | --- |
+    | `token` | Token from AI Bot configuration |
+    | `encoding_aes_key` | 43-character AES key |
+    | `webhook_path` | Webhook endpoint (default: `/webhook/wecom-aibot`) |
+    | `allow_from` | Allowed user IDs (empty = allow all) |
+    | `welcome_message` | First message users see (optional) |
+  </Step>
+
+  <Step title="Start Gateway">
+    ```bash
+    picoclaw gateway
+    ```
+
+    Look for:
+    ```
+    [INFO] wecom_aibot: WeCom AI Bot initialized
+    [INFO] wecom_aibot: Streaming support enabled
+    ```
+  </Step>
+
+  <Step title="Test the AI Bot">
+    1. Add the AI Bot in WeCom
+    2. Send a message
+    3. Observe streaming replies (if supported by your LLM)
+  </Step>
+</Steps>
+
+### WeCom AI Bot Configuration
+
+```json
+{
+  "channels": {
+    "wecom_aibot": {
+      "enabled": true,
+      "token": "YOUR_TOKEN",
+      "encoding_aes_key": "YOUR_43_CHAR_ENCODING_AES_KEY",
+      "webhook_path": "/webhook/wecom-aibot",
+      "allow_from": [],
+      "welcome_message": "Hello! I'm your AI assistant. Ask me anything!"
+    }
+  }
+}
+```
+
+### Streaming Protocol
+
+<Note>
+**WeCom AI Bot Advantages:**
+
+- Uses streaming pull protocol (no reply timeout)
+- Long tasks (>30 seconds) automatically switch to `response_url` push delivery
+- Real-time response streaming for better UX
+- Official AI bot support from WeCom
+</Note>
+
+## Access Control
+
+All modes support `allow_from` to restrict access:
+
+**Allow specific users:**
+```json
+{
+  "allow_from": ["user_id_1", "user_id_2"]
+}
+```
+
+**Allow everyone:**
+```json
+{
+  "allow_from": []
+}
+```
+
+Finding user IDs:
+- Check Gateway logs when users send messages
+- Use WeCom Admin API to query user list
+- Inspect webhook payload structure
+
+## Comparison Table
+
+| Feature | WeCom Bot | WeCom App | WeCom AI Bot |
+| --- | --- | --- | --- |
+| Setup Difficulty | Easy | Medium | Medium |
+| Group Chat | ✅ Yes | ❌ No | ✅ Yes |
+| Private Chat | ❌ No | ✅ Yes | ✅ Yes |
+| Proactive Messaging | ❌ No | ✅ Yes | ✅ Yes |
+| Streaming Replies | ❌ No | ❌ No | ✅ Yes |
+| Timeout Issues | ⚠️ Possible | ⚠️ Possible | ✅ No timeout |
+| Webhook Required | ✅ Yes | ✅ Yes | ✅ Yes |
+| Best For | Quick group bot | Full enterprise integration | Production AI assistant |
+
+## Troubleshooting
+
+### "Signature verification failed"
+
+**Cause**: Token or EncodingAESKey mismatch
+
+**Solution**:
+1. Verify `token` and `encoding_aes_key` in config match WeCom Admin Console
+2. Check for extra spaces when copying
+3. Regenerate credentials if needed
+4. Restart gateway
+
+### "Invalid CorpID"
+
+**Cause**: Wrong CorpID or missing
+
+**Solution**:
+1. Go to WeCom Admin Console → My Company
+2. Copy CorpID exactly (starts with `ww`)
+3. Update config
+4. Restart gateway
+
+### Bot doesn't respond
+
+**Check**:
+1. Gateway running: `picoclaw gateway`
+2. Webhook URL configured in WeCom
+3. HTTPS enabled (production requirement)
+4. `allow_from` permits the user
+5. LLM configured: `picoclaw agent -m "test"`
+
+### Webhook not receiving messages
+
+**Possible causes**:
+1. Webhook URL incorrect
+2. Gateway not accessible from internet
+3. Firewall blocking port 18790
+4. HTTPS certificate invalid
+
+**Check**:
+- Test webhook URL with `curl`
+- Verify Gateway logs for incoming requests
+- Use ngrok for testing: `ngrok http 18790`
+- Ensure `gateway.host` is `0.0.0.0` for external access
+
+### "App not found" errors
+
+**Cause**: AgentId incorrect or app not approved
+
+**Solution**:
+1. Verify AgentId in WeCom Admin Console
+2. Check app approval status
+3. Ensure AgentId is numeric (not string)
+
+## Privacy & Security
+
+<Warning>
+**Security Best Practices:**
+
+- Never share CorpID, Secret, Token, or EncodingAESKey
+- Use HTTPS for production webhooks
+- Never commit credentials to repositories
+- Use `allow_from` for sensitive bots
+- Regenerate credentials if compromised
+- Monitor bot usage in WeCom Admin Console
+- Follow your organization's security policies
+</Warning>
+
+### Data Privacy
+
+WeCom integrations can access:
+- Messages sent to the bot
+- User information (name, ID, department)
+- Organizational structure
+- Group information
+
+Be aware of:
+- WeCom/Tencent privacy policies
+- Chinese data protection regulations
+- Your organization's data policies
+- Local data storage in PicoClaw workspace
+- LLM provider data logging
+
+## Complete Example
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "glm-4"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "glm-4",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key"
+    }
+  ],
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 18790
+  },
+  "channels": {
+    "wecom_aibot": {
+      "enabled": true,
+      "token": "abcdefghijklmnopqrst",
+      "encoding_aes_key": "1234567890abcdefghijklmnopqrstuvwxyz1234567",
+      "webhook_path": "/webhook/wecom-aibot",
+      "allow_from": [],
+      "welcome_message": "你好！我是你的AI助手，有什么可以帮你的吗？"
+    }
+  }
+}
+```
+
+## Regional Considerations
+
+<Note>
+**China-Specific Notes:**
+
+- WeCom is designed for Chinese enterprise market
+- Servers hosted in China for compliance
+- Use Chinese LLM providers (Zhipu, Qwen, DeepSeek)
+- Content filtering may apply
+- Follow Chinese data protection laws
+- International version (WeChat Work) has limited features
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="DingTalk Channel" icon="building" href="/channels/dingtalk">
+    Another enterprise platform in China
+  </Card>
+  <Card title="QQ Channel" icon="message" href="/channels/qq">
+    Popular personal messaging in China
+  </Card>
+  <Card title="Telegram Channel" icon="telegram" href="/channels/telegram">
+    International alternative
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Advanced configuration options
+  </Card>
+</CardGroup>

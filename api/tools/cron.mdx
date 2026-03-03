@@ -1,0 +1,523 @@
+---
+title: Cron Tool
+description: Schedule reminders, tasks, and commands with flexible timing options
+---
+
+The `cron` tool provides comprehensive scheduling capabilities for agents, supporting one-time reminders, recurring tasks, and automated command execution.
+
+## cron
+
+Schedule reminders, tasks, or system commands.
+
+### Parameters
+
+<ParamField path="action" type="string" required>
+  Action to perform:
+  - `"add"` - Create a new scheduled job
+  - `"list"` - List all scheduled jobs
+  - `"remove"` - Delete a job
+  - `"enable"` - Enable a disabled job
+  - `"disable"` - Temporarily disable a job
+</ParamField>
+
+#### For "add" action:
+
+<ParamField path="message" type="string" required>
+  The reminder/task message to display when triggered. If `command` is used, this describes what the command does.
+</ParamField>
+
+<ParamField path="at_seconds" type="integer">
+  One-time reminder: seconds from now when to trigger (e.g., 600 for 10 minutes later).
+  
+  Use this for one-time reminders like "remind me in 10 minutes".
+</ParamField>
+
+<ParamField path="every_seconds" type="integer">
+  Recurring interval in seconds (e.g., 3600 for every hour).
+  
+  Use this ONLY for recurring tasks like "every 2 hours" or "daily reminder".
+</ParamField>
+
+<ParamField path="cron_expr" type="string">
+  Cron expression for complex recurring schedules (e.g., "0 9 * * *" for daily at 9am).
+  
+  Use standard cron syntax: `minute hour day month weekday`
+</ParamField>
+
+<ParamField path="command" type="string">
+  Optional: Shell command to execute directly (e.g., "df -h").
+  
+  If set, the agent will run this command and report output instead of just showing the message. `deliver` will be forced to false for commands.
+</ParamField>
+
+<ParamField path="deliver" type="boolean">
+  If true, send message directly to channel. If false, let agent process message for complex tasks. Default: true.
+</ParamField>
+
+#### For "remove", "enable", "disable" actions:
+
+<ParamField path="job_id" type="string" required>
+  The ID of the job to modify.
+</ParamField>
+
+### Returns
+
+<ResponseField name="result" type="string">
+  Confirmation message with job details or list of scheduled jobs.
+</ResponseField>
+
+---
+
+## Usage Examples
+
+### One-Time Reminder
+
+```json
+{
+  "tool": "cron",
+  "parameters": {
+    "action": "add",
+    "message": "Check the build status",
+    "at_seconds": 600
+  }
+}
+```
+
+**Result:** Reminder triggers in 10 minutes (600 seconds).
+
+### Recurring Task
+
+```json
+{
+  "tool": "cron",
+  "parameters": {
+    "action": "add",
+    "message": "Hourly system check",
+    "every_seconds": 3600
+  }
+}
+```
+
+**Result:** Task runs every hour.
+
+### Cron Expression
+
+```json
+{
+  "tool": "cron",
+  "parameters": {
+    "action": "add",
+    "message": "Daily backup reminder",
+    "cron_expr": "0 9 * * *"
+  }
+}
+```
+
+**Result:** Runs daily at 9:00 AM.
+
+### Scheduled Command
+
+```json
+{
+  "tool": "cron",
+  "parameters": {
+    "action": "add",
+    "message": "Check disk space",
+    "command": "df -h",
+    "every_seconds": 3600
+  }
+}
+```
+
+**Result:** Executes `df -h` every hour and reports output.
+
+---
+
+## Schedule Types
+
+### One-Time (at_seconds)
+
+Triggers once at a specific time in the future.
+
+```json
+{
+  "at_seconds": 300   // 5 minutes from now
+}
+```
+
+**Common values:**
+- 60 = 1 minute
+- 300 = 5 minutes
+- 600 = 10 minutes
+- 1800 = 30 minutes
+- 3600 = 1 hour
+- 86400 = 1 day
+
+**Internal storage:** Converted to absolute timestamp in milliseconds.
+
+### Recurring (every_seconds)
+
+Repeats at fixed intervals.
+
+```json
+{
+  "every_seconds": 7200  // Every 2 hours
+}
+```
+
+**Common intervals:**
+- 60 = Every minute
+- 300 = Every 5 minutes
+- 3600 = Every hour
+- 7200 = Every 2 hours
+- 86400 = Daily
+- 604800 = Weekly
+
+**Internal storage:** Stored as milliseconds interval.
+
+### Cron Expression (cron_expr)
+
+Uses standard cron syntax for complex schedules.
+
+```
+minute hour day month weekday
+```
+
+**Examples:**
+
+```json
+// Daily at 9 AM
+{ "cron_expr": "0 9 * * *" }
+
+// Every Monday at 10:30 AM
+{ "cron_expr": "30 10 * * 1" }
+
+// Every 15 minutes
+{ "cron_expr": "*/15 * * * *" }
+
+// First day of month at midnight
+{ "cron_expr": "0 0 1 * *" }
+
+// Weekdays at 5 PM
+{ "cron_expr": "0 17 * * 1-5" }
+```
+
+**Cron syntax:**
+- `*` = any value
+- `*/n` = every n units
+- `n,m` = specific values
+- `n-m` = range of values
+
+---
+
+## Delivery Modes
+
+### Direct Delivery (deliver=true)
+
+Message is sent directly to the chat channel without agent processing.
+
+```json
+{
+  "message": "Time for your break!",
+  "deliver": true
+}
+```
+
+**Use for:**
+- Simple reminders
+- Notifications
+- Alerts
+
+### Agent Processing (deliver=false)
+
+Message is processed by the agent, allowing complex task execution.
+
+```json
+{
+  "message": "Analyze today's logs and summarize errors",
+  "deliver": false
+}
+```
+
+**Use for:**
+- Tasks requiring agent reasoning
+- Multi-step operations
+- Context-aware actions
+
+### Command Execution
+
+When `command` is specified, it executes directly via the exec tool.
+
+```json
+{
+  "message": "Disk space check",
+  "command": "df -h",
+  "every_seconds": 3600
+}
+```
+
+**Behavior:**
+- Executes shell command
+- Captures output (stdout + stderr)
+- Reports results to chat
+- Respects exec tool safety guards
+
+---
+
+## Job Management
+
+### List Jobs
+
+```json
+{
+  "action": "list"
+}
+```
+
+**Output:**
+```
+Scheduled jobs:
+- Check disk space (id: job-123, every 3600s)
+- Daily backup reminder (id: job-456, 0 9 * * *)
+- Meeting reminder (id: job-789, one-time)
+```
+
+### Remove Job
+
+```json
+{
+  "action": "remove",
+  "job_id": "job-123"
+}
+```
+
+**Result:** `"Cron job removed: job-123"`
+
+### Enable Job
+
+```json
+{
+  "action": "enable",
+  "job_id": "job-123"
+}
+```
+
+**Result:** `"Cron job 'Check disk space' enabled"`
+
+### Disable Job
+
+```json
+{
+  "action": "disable",
+  "job_id": "job-123"
+}
+```
+
+**Result:** `"Cron job 'Check disk space' disabled"`
+
+Disabled jobs are not deleted but won't execute until re-enabled.
+
+---
+
+## Context Management
+
+Jobs inherit context from the conversation where they're created:
+
+```go
+cronTool.SetContext("telegram", "123456789")
+```
+
+This ensures:
+- Job messages are sent to the original channel
+- Job output reaches the correct user
+- Multi-user agents maintain proper routing
+
+---
+
+## Job Execution
+
+When a job triggers, the cron tool's `ExecuteJob` method is called:
+
+### Execution Flow
+
+1. **Command jobs**: Execute via exec tool → Report output
+2. **Direct delivery**: Send message to channel immediately
+3. **Agent processing**: Route message through agent loop
+
+### Command Execution
+
+```go
+// Executes command and reports output
+args := map[string]any{"command": job.Payload.Command}
+result := execTool.Execute(ctx, args)
+```
+
+**Output format:**
+```
+Scheduled command 'df -h' executed:
+[command output]
+```
+
+**Error format:**
+```
+Error executing scheduled command: [error details]
+```
+
+### Timeout Configuration
+
+```go
+cronTool := NewCronTool(
+    cronService,
+    executor,
+    msgBus,
+    workspace,
+    restrict,
+    5 * time.Minute,  // Command timeout
+    config,
+)
+```
+
+Commands timeout after the specified duration.
+
+---
+
+## Error Handling
+
+### Missing Parameters
+
+```json
+{ "error": "action is required" }
+{ "error": "message is required for add" }
+{ "error": "job_id is required for remove" }
+```
+
+### Invalid Schedule
+
+```json
+{
+  "error": "one of at_seconds, every_seconds, or cron_expr is required"
+}
+```
+
+### Missing Context
+
+```json
+{
+  "error": "no session context (channel/chat_id not set). Use this tool in an active conversation."
+}
+```
+
+### Job Not Found
+
+```json
+{ "error": "Job job-123 not found" }
+```
+
+### Add Job Failure
+
+```json
+{
+  "error": "Error adding job: invalid cron expression"
+}
+```
+
+---
+
+## Best Practices
+
+### 1. Choose the Right Schedule Type
+
+```json
+// ✅ Good - One-time reminder
+{ "at_seconds": 1800 }
+
+// ❌ Avoid - Recurring with at_seconds
+{ "at_seconds": 3600, "every_seconds": 3600 }  // Confusing!
+```
+
+### 2. Provide Descriptive Messages
+
+```json
+// ✅ Good
+{ "message": "Daily standup meeting in 5 minutes" }
+
+// ❌ Avoid
+{ "message": "reminder" }
+```
+
+### 3. Use Commands for Simple Operations
+
+```json
+// ✅ Good
+{ "command": "df -h" }
+
+// ❌ Avoid - Agent processing not needed
+{ "message": "Run df -h and show output", "deliver": false }
+```
+
+### 4. List Jobs Regularly
+
+Prevent accumulation of obsolete jobs:
+
+```json
+{ "action": "list" }
+```
+
+### 5. Use Meaningful Job Names
+
+The first 30 characters of `message` become the job name:
+
+```json
+// ✅ Good
+{ "message": "Hourly disk space check - Alert if < 10%" }
+
+// ❌ Avoid
+{ "message": "Check" }
+```
+
+---
+
+## Integration Examples
+
+### Daily Report
+
+```json
+{
+  "action": "add",
+  "message": "Generate daily activity report",
+  "cron_expr": "0 17 * * 1-5",
+  "deliver": false
+}
+```
+
+### System Monitoring
+
+```json
+{
+  "action": "add",
+  "message": "Check system resources",
+  "command": "top -bn1 | head -20",
+  "every_seconds": 300
+}
+```
+
+### Meeting Reminders
+
+```json
+{
+  "action": "add",
+  "message": "Team standup in 5 minutes",
+  "cron_expr": "25 9 * * 1-5"
+}
+```
+
+### Backup Verification
+
+```json
+{
+  "action": "add",
+  "message": "Verify last night's backup",
+  "command": "ls -lh /backups | tail -5",
+  "cron_expr": "0 8 * * *"
+}
+```

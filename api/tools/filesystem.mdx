@@ -1,0 +1,285 @@
+---
+title: Filesystem Tools
+description: Tools for reading, writing, and managing files in PicoClaw agents
+---
+
+The filesystem tools provide secure file operations with optional workspace sandboxing. All tools support both unrestricted and sandboxed modes with path whitelisting.
+
+## Security Model
+
+PicoClaw implements a multi-layered security model for filesystem access:
+
+- **Sandboxed mode** (`restrict=true`): Operations are confined to the workspace directory using `os.Root`
+- **Unrestricted mode** (`restrict=false`): Direct host filesystem access
+- **Path whitelisting**: Allow specific paths outside the workspace even in sandboxed mode
+- **Symlink protection**: Validates that symlinks don't escape the workspace
+- **Atomic writes**: All write operations use atomic file writes with explicit sync for data durability
+
+---
+
+## read_file
+
+Read the contents of a file from the filesystem.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Path to the file to read. Can be absolute or relative to the workspace.
+</ParamField>
+
+### Returns
+
+<ResponseField name="content" type="string">
+  The complete contents of the file as a string.
+</ResponseField>
+
+### Error Handling
+
+- Returns error if file does not exist: `"failed to read file: file not found"`
+- Returns error if permission denied: `"failed to read file: access denied"`
+- Returns error if path is outside workspace (in sandboxed mode): `"access denied: path is outside the workspace"`
+
+### Usage Example
+
+```json
+{
+  "tool": "read_file",
+  "parameters": {
+    "path": "config/settings.json"
+  }
+}
+```
+
+### Implementation Notes
+
+- In sandboxed mode, paths are validated against the workspace boundary
+- Symlinks are resolved and checked to prevent workspace escape
+- Relative paths are resolved relative to the workspace directory
+
+---
+
+## write_file
+
+Write content to a file, creating parent directories if needed.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Path to the file to write. Will be created if it doesn't exist.
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  Content to write to the file.
+</ParamField>
+
+### Returns
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"File written: {path}"`
+</ResponseField>
+
+### Safety Features
+
+- **Atomic writes**: Uses temporary file + rename to ensure atomic operations
+- **Explicit sync**: Calls `fsync()` before rename to ensure data is physically written
+- **Parent directory creation**: Automatically creates parent directories in sandboxed mode
+- **Secure permissions**: Files are created with 0600 (owner read/write only)
+
+### Usage Example
+
+```json
+{
+  "tool": "write_file",
+  "parameters": {
+    "path": "output/results.txt",
+    "content": "Analysis complete\nTotal: 42 items"
+  }
+}
+```
+
+### Implementation Notes
+
+The atomic write process:
+1. Create temporary file with unique name (`.tmp-{pid}-{timestamp}`)
+2. Write content to temporary file
+3. Call `Sync()` to flush to disk
+4. Rename temporary file to target path (atomic operation)
+5. Sync parent directory to ensure rename is durable
+
+This ensures no data loss even during power failures.
+
+---
+
+## list_dir
+
+List files and directories in a specified path.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Path to the directory to list. Defaults to current directory if empty.
+</ParamField>
+
+### Returns
+
+<ResponseField name="entries" type="string">
+  Formatted list of directory entries, one per line:
+  - Directories: `"DIR:  {name}"`
+  - Files: `"FILE: {name}"`
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "list_dir",
+  "parameters": {
+    "path": "src"
+  }
+}
+```
+
+**Output:**
+```
+DIR:  components
+FILE: main.go
+FILE: config.go
+DIR:  utils
+```
+
+---
+
+## edit_file
+
+Edit a file by replacing old text with new text. The old text must match exactly.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  The file path to edit.
+</ParamField>
+
+<ParamField path="old_text" type="string" required>
+  The exact text to find and replace. Must appear exactly once in the file.
+</ParamField>
+
+<ParamField path="new_text" type="string" required>
+  The text to replace with.
+</ParamField>
+
+### Returns
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"File edited: {path}"`
+</ResponseField>
+
+### Error Handling
+
+- If `old_text` is not found: `"old_text not found in file. Make sure it matches exactly"`
+- If `old_text` appears multiple times: `"old_text appears {count} times. Please provide more context to make it unique"`
+
+### Usage Example
+
+```json
+{
+  "tool": "edit_file",
+  "parameters": {
+    "path": "config.json",
+    "old_text": "\"version\": \"1.0.0\"",
+    "new_text": "\"version\": \"1.1.0\""
+  }
+}
+```
+
+### Best Practices
+
+- Include enough context in `old_text` to make it unique
+- Preserve exact whitespace and formatting
+- For multiple replacements, use multiple edit operations
+- Consider using `read_file` first to verify the exact text
+
+---
+
+## append_file
+
+Append content to the end of a file.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  The file path to append to. Will be created if it doesn't exist.
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  The content to append.
+</ParamField>
+
+### Returns
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"Appended to {path}"`
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "append_file",
+  "parameters": {
+    "path": "logs/activity.log",
+    "content": "2024-03-15 10:30:00 - Task completed\n"
+  }
+}
+```
+
+### Implementation Notes
+
+- If file doesn't exist, creates it with the appended content
+- Uses atomic write operations for safety
+- Does not add automatic newlines - include `\n` in content if needed
+
+---
+
+## Path Resolution
+
+All filesystem tools follow consistent path resolution rules:
+
+### Absolute Paths
+```json
+{
+  "path": "/home/user/project/file.txt"
+}
+```
+- Used as-is
+- Validated against workspace in sandboxed mode
+
+### Relative Paths
+```json
+{
+  "path": "config/settings.json"
+}
+```
+- Resolved relative to workspace directory
+- Automatically prefixed with workspace path
+
+### Path Validation
+
+In sandboxed mode, paths are validated to ensure:
+- No directory traversal (`../`) outside workspace
+- Symlinks don't resolve outside workspace
+- Absolute paths are within workspace
+
+## Whitelist Configuration
+
+Allow specific paths outside the workspace:
+
+```go
+allowPatterns := []*regexp.Regexp{
+    regexp.MustCompile(`^/etc/hosts$`),
+    regexp.MustCompile(`^/tmp/.*\.log$`),
+}
+
+tool := NewReadFileTool(workspace, true, allowPatterns)
+```
+
+Whitelisted paths bypass sandbox restrictions even in restricted mode.

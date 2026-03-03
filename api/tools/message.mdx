@@ -1,0 +1,320 @@
+---
+title: Message Tool
+description: Send messages to users on chat channels
+---
+
+The `message` tool allows agents to send messages directly to users on various chat platforms.
+
+## message
+
+Send a message to a user on a chat channel.
+
+### Parameters
+
+<ParamField path="content" type="string" required>
+  The message content to send.
+</ParamField>
+
+<ParamField path="channel" type="string">
+  Optional target channel (e.g., "telegram", "whatsapp", "discord"). If not specified, uses the current conversation's channel.
+</ParamField>
+
+<ParamField path="chat_id" type="string">
+  Optional target chat or user ID. If not specified, uses the current conversation's chat ID.
+</ParamField>
+
+### Returns
+
+<ResponseField name="message" type="string">
+  Silent confirmation: `"Message sent to {channel}:{chat_id}"`
+  
+  The result is marked as silent since the user already receives the message directly.
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "message",
+  "parameters": {
+    "content": "Your analysis is complete. Found 42 items matching the criteria."
+  }
+}
+```
+
+---
+
+## Context Management
+
+The message tool uses conversation context to determine the default recipient:
+
+```go
+messageTool.SetContext("telegram", "123456789")
+```
+
+When context is set:
+- `channel` defaults to the conversation's channel
+- `chat_id` defaults to the conversation's chat ID
+
+### Override Context
+
+Explicitly specify different channel/chat:
+
+```json
+{
+  "tool": "message",
+  "parameters": {
+    "content": "Alert: System maintenance in 5 minutes",
+    "channel": "telegram",
+    "chat_id": "987654321"
+  }
+}
+```
+
+---
+
+## Send Tracking
+
+The message tool tracks whether messages were sent in the current processing round:
+
+```go
+if messageTool.HasSentInRound() {
+    // Message was sent during this round
+}
+```
+
+**Tracking resets** when `SetContext()` is called for a new processing round.
+
+---
+
+## Callback Integration
+
+The message tool uses a callback function to deliver messages:
+
+```go
+type SendCallback func(channel, chatID, content string) error
+
+messageTool.SetSendCallback(func(channel, chatID, content string) error {
+    return sendToChannel(channel, chatID, content)
+})
+```
+
+### Callback Requirements
+
+- **channel**: Platform identifier ("telegram", "whatsapp", etc.)
+- **chatID**: Unique identifier for the chat or user
+- **content**: Message text to send
+- **Returns**: Error if sending fails
+
+---
+
+## Error Handling
+
+### Missing Content
+
+```json
+{
+  "error": "content is required"
+}
+```
+
+### Missing Context
+
+```json
+{
+  "error": "No target channel/chat specified"
+}
+```
+
+This occurs when:
+- No context was set via `SetContext()`
+- `channel` or `chat_id` not provided in parameters
+
+### Callback Not Configured
+
+```json
+{
+  "error": "Message sending not configured"
+}
+```
+
+### Send Failure
+
+```json
+{
+  "error": "sending message: connection timeout"
+}
+```
+
+Returned when the callback function fails.
+
+---
+
+## Use Cases
+
+### Progress Updates
+
+```json
+{
+  "tool": "message",
+  "parameters": {
+    "content": "Step 1/3 complete: Data collected (2.5 GB)"
+  }
+}
+```
+
+### Task Completion
+
+```json
+{
+  "tool": "message",
+  "parameters": {
+    "content": "✅ Analysis complete!\n\nResults:\n- Total items: 156\n- Errors: 3\n- Duration: 2m 30s"
+  }
+}
+```
+
+### Alerts & Notifications
+
+```json
+{
+  "tool": "message",
+  "parameters": {
+    "content": "⚠️ Warning: Disk space low (5% remaining)"
+  }
+}
+```
+
+### Multi-user Notifications
+
+Send to multiple recipients:
+
+```json
+[
+  {
+    "tool": "message",
+    "parameters": {
+      "content": "Deployment starting...",
+      "chat_id": "user1"
+    }
+  },
+  {
+    "tool": "message",
+    "parameters": {
+      "content": "Deployment starting...",
+      "chat_id": "user2"
+    }
+  }
+]
+```
+
+---
+
+## Best Practices
+
+### 1. Use for Important Updates
+
+Send messages for:
+- Task completion
+- Error conditions
+- Progress milestones
+- Time-sensitive alerts
+
+### 2. Format for Readability
+
+```json
+// ✅ Good - Structured formatting
+{
+  "content": "Analysis Complete\n\nResults:\n- Items: 42\n- Errors: 0\n- Time: 1m 30s"
+}
+
+// ❌ Avoid - Wall of text
+{
+  "content": "Analysis complete found 42 items no errors took 1 minute 30 seconds"
+}
+```
+
+### 3. Include Context
+
+```json
+// ✅ Good
+{
+  "content": "Database backup completed at 02:30 AM\nSize: 2.5 GB\nLocation: /backups/2024-03-15.sql.gz"
+}
+
+// ❌ Avoid
+{
+  "content": "Backup done"
+}
+```
+
+### 4. Use Emojis Sparingly
+
+```json
+// ✅ Good
+{
+  "content": "✅ Build successful\n⚠️ 3 warnings"
+}
+
+// ❌ Avoid
+{
+  "content": "🎉🎊✨ Build successful! 🚀💯🔥"
+}
+```
+
+### 5. Handle Failures Gracefully
+
+Implement retry logic in the callback:
+
+```go
+func sendWithRetry(channel, chatID, content string) error {
+    for i := 0; i < 3; i++ {
+        if err := sendToChannel(channel, chatID, content); err == nil {
+            return nil
+        }
+        time.Sleep(time.Second * time.Duration(i+1))
+    }
+    return errors.New("failed after 3 retries")
+}
+
+messageTool.SetSendCallback(sendWithRetry)
+```
+
+---
+
+## Integration with Other Tools
+
+### With Cron Tool
+
+```go
+// Cron job sends message at scheduled time
+job.Payload.Message = "Daily report ready"
+job.Payload.Deliver = true
+```
+
+### With Spawn Tool
+
+```go
+// Subagent reports completion via message
+spawnTool.SetCallback(func(result string) {
+    messageTool.Execute(ctx, map[string]any{
+        "content": fmt.Sprintf("Subagent completed: %s", result),
+    })
+})
+```
+
+---
+
+## Platform Support
+
+The message tool is platform-agnostic. Supported channels depend on your callback implementation:
+
+- Telegram
+- WhatsApp
+- Discord
+- Slack
+- IRC
+- CLI (direct output)
+- Custom platforms
+
+Implement the `SendCallback` for your target platform.

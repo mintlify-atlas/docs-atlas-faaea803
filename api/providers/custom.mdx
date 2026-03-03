@@ -1,0 +1,524 @@
+---
+title: Custom Providers
+description: Configure custom LLM providers, self-hosted models, and proxies with PicoClaw
+---
+
+## Overview
+
+PicoClaw supports any OpenAI-compatible API endpoint, enabling you to use:
+- Custom API proxies and gateways
+- Self-hosted models (VLLM, Ollama)
+- LiteLLM proxy for unified access
+- Local inference servers
+- Enterprise deployments
+
+## Custom API Endpoints
+
+### Basic Configuration
+
+Any OpenAI-compatible endpoint can be configured:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "my-custom-model",
+      "model": "openai/custom-model",
+      "api_base": "https://my-api.example.com/v1",
+      "api_key": "your-api-key",
+      "request_timeout": 300
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "my-custom-model"
+    }
+  }
+}
+```
+
+### Configuration Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `model_name` | string | Yes | - | Alias for this model configuration |
+| `model` | string | Yes | - | Model identifier (any prefix) |
+| `api_base` | string | Yes | - | Your custom API endpoint URL |
+| `api_key` | string | No | - | API key (if required by endpoint) |
+| `request_timeout` | integer | No | 120 | Request timeout in seconds |
+
+## LiteLLM Proxy
+
+### What is LiteLLM?
+
+LiteLLM is a unified proxy that translates requests across 100+ LLM providers. It provides:
+- Single API for multiple providers
+- Load balancing and fallbacks
+- Cost tracking and budgets
+- Rate limiting
+- Caching
+
+### Setup LiteLLM
+
+#### 1. Install LiteLLM
+
+```bash
+pip install litellm[proxy]
+```
+
+#### 2. Create Configuration
+
+Create `litellm_config.yaml`:
+
+```yaml
+model_list:
+  - model_name: gpt-4
+    litellm_params:
+      model: openai/gpt-4
+      api_key: sk-...
+  
+  - model_name: claude
+    litellm_params:
+      model: anthropic/claude-sonnet-4.6
+      api_key: sk-ant-...
+  
+  - model_name: llama
+    litellm_params:
+      model: ollama/llama3
+      api_base: http://localhost:11434
+
+general_settings:
+  master_key: sk-1234  # Your LiteLLM proxy key
+```
+
+#### 3. Start LiteLLM Proxy
+
+```bash
+litellm --config litellm_config.yaml --port 4000
+```
+
+#### 4. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "litellm/gpt-4",
+      "api_base": "http://localhost:4000/v1",
+      "api_key": "sk-1234"
+    },
+    {
+      "model_name": "claude",
+      "model": "litellm/claude",
+      "api_base": "http://localhost:4000/v1",
+      "api_key": "sk-1234"
+    }
+  ]
+}
+```
+
+<Note>
+PicoClaw strips the `litellm/` prefix, so `litellm/gpt-4` sends `gpt-4` to the proxy.
+</Note>
+
+#### 5. Test Connection
+
+```bash
+picoclaw agent -m "Test LiteLLM proxy"
+```
+
+### Advanced LiteLLM Features
+
+#### Load Balancing
+
+LiteLLM config with multiple endpoints:
+
+```yaml
+model_list:
+  - model_name: gpt-4
+    litellm_params:
+      model: openai/gpt-4
+      api_key: sk-key1
+      api_base: https://api1.example.com/v1
+  
+  - model_name: gpt-4
+    litellm_params:
+      model: openai/gpt-4
+      api_key: sk-key2
+      api_base: https://api2.example.com/v1
+```
+
+PicoClaw config:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "litellm/gpt-4",
+      "api_base": "http://localhost:4000/v1",
+      "api_key": "sk-1234"
+    }
+  ]
+}
+```
+
+## VLLM (Self-Hosted)
+
+### What is VLLM?
+
+VLLM is a high-performance inference server for running LLMs locally or in the cloud.
+
+### Setup VLLM
+
+#### 1. Install VLLM
+
+```bash
+pip install vllm
+```
+
+#### 2. Start VLLM Server
+
+```bash
+vllm serve meta-llama/Llama-3-8B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --api-key your-api-key
+```
+
+#### 3. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "llama3",
+      "model": "vllm/Llama-3-8B-Instruct",
+      "api_base": "http://localhost:8000/v1",
+      "api_key": "your-api-key",
+      "request_timeout": 600
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "llama3"
+    }
+  }
+}
+```
+
+#### 4. Test Connection
+
+```bash
+picoclaw agent -m "Test VLLM server"
+```
+
+### VLLM with Multiple GPUs
+
+```bash
+vllm serve meta-llama/Llama-3-70B-Instruct \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+### VLLM Best Practices
+
+1. **GPU memory**: Ensure sufficient VRAM for your model
+2. **Batch size**: Tune for throughput vs latency
+3. **Context length**: Set `--max-model-len` appropriately
+4. **Timeouts**: Increase `request_timeout` for large contexts
+
+## Ollama (Local Models)
+
+### What is Ollama?
+
+Ollama makes it easy to run open-source LLMs locally on your machine.
+
+### Setup Ollama
+
+#### 1. Install Ollama
+
+```bash
+# macOS / Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Or download from https://ollama.ai
+```
+
+#### 2. Pull a Model
+
+```bash
+ollama pull llama3
+```
+
+Available models:
+- `llama3` - Meta Llama 3
+- `mistral` - Mistral 7B
+- `codellama` - Code Llama
+- `qwen2.5` - Qwen 2.5
+- Many more at https://ollama.ai/library
+
+#### 3. Start Ollama Server
+
+```bash
+ollama serve
+```
+
+Default endpoint: `http://localhost:11434`
+
+#### 4. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "llama3",
+      "model": "ollama/llama3",
+      "api_base": "http://localhost:11434/v1"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "llama3"
+    }
+  }
+}
+```
+
+<Note>
+No API key needed for Ollama - it's completely local!
+</Note>
+
+#### 5. Test Connection
+
+```bash
+picoclaw agent -m "Test Ollama"
+```
+
+### Ollama Best Practices
+
+1. **Model selection**: Choose models that fit your hardware
+2. **Context window**: Larger models support longer contexts
+3. **Performance**: Use GPU for better performance
+4. **Updates**: Keep Ollama updated for latest features
+
+## Custom Proxy Configuration
+
+### HTTP Proxy
+
+Route requests through an HTTP proxy:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "proxied-model",
+      "model": "openai/gpt-4",
+      "api_base": "https://api.openai.com/v1",
+      "api_key": "sk-..."
+    }
+  ],
+  "providers": {
+    "openai": {
+      "proxy": "http://proxy.example.com:8080"
+    }
+  }
+}
+```
+
+### Reverse Proxy
+
+Run your own reverse proxy:
+
+```nginx
+# nginx.conf
+server {
+  listen 443 ssl;
+  server_name my-llm-proxy.com;
+  
+  location /v1/ {
+    proxy_pass https://api.openai.com/v1/;
+    proxy_set_header Authorization "Bearer sk-...";
+    proxy_set_header Content-Type "application/json";
+  }
+}
+```
+
+PicoClaw config:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-4",
+      "api_base": "https://my-llm-proxy.com/v1"
+    }
+  ]
+}
+```
+
+## Enterprise Deployments
+
+### Azure OpenAI
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "azure-gpt4",
+      "model": "openai/gpt-4",
+      "api_base": "https://your-resource.openai.azure.com/openai/deployments/gpt-4",
+      "api_key": "your-azure-key"
+    }
+  ]
+}
+```
+
+### AWS Bedrock
+
+Use through LiteLLM proxy:
+
+```yaml
+model_list:
+  - model_name: claude-bedrock
+    litellm_params:
+      model: bedrock/anthropic.claude-3-sonnet-20240229-v1:0
+      aws_access_key_id: xxx
+      aws_secret_access_key: xxx
+      aws_region_name: us-east-1
+```
+
+### GCP Vertex AI
+
+Use through LiteLLM proxy:
+
+```yaml
+model_list:
+  - model_name: gemini-vertex
+    litellm_params:
+      model: vertex_ai/gemini-pro
+      vertex_project: your-project
+      vertex_location: us-central1
+```
+
+## Troubleshooting
+
+### Connection Refused
+
+Ensure your custom endpoint is running:
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+### Timeout Errors
+
+Increase timeout for slow endpoints:
+
+```json
+{
+  "model_name": "slow-model",
+  "model": "custom/model",
+  "api_base": "http://localhost:8000/v1",
+  "request_timeout": 600
+}
+```
+
+### API Key Issues
+
+Some endpoints don't require keys:
+
+```json
+{
+  "model_name": "local-model",
+  "model": "ollama/llama3",
+  "api_base": "http://localhost:11434/v1"
+}
+```
+
+Omit `api_key` for local servers.
+
+### Protocol Mismatches
+
+Ensure your endpoint is OpenAI-compatible:
+- Endpoint: `/v1/chat/completions`
+- Request format: OpenAI JSON schema
+- Response format: OpenAI JSON schema
+
+## Best Practices
+
+1. **Use LiteLLM** for complex multi-provider setups
+2. **Local development** with Ollama for privacy
+3. **Production** use VLLM for performance
+4. **Monitoring** add health checks and logging
+5. **Security** use HTTPS and authentication
+6. **Timeouts** set appropriate timeouts for your use case
+7. **Fallbacks** configure backup providers
+
+## Example Configurations
+
+### Multi-Provider Setup
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "primary",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-..."
+    },
+    {
+      "model_name": "fallback",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-..."
+    },
+    {
+      "model_name": "local",
+      "model": "ollama/llama3",
+      "api_base": "http://localhost:11434/v1"
+    },
+    {
+      "model_name": "proxy",
+      "model": "litellm/gpt-4",
+      "api_base": "http://localhost:4000/v1",
+      "api_key": "sk-1234"
+    }
+  ]
+}
+```
+
+### Development Setup
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "dev",
+      "model": "ollama/llama3",
+      "api_base": "http://localhost:11434/v1"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "dev",
+      "max_tokens": 2048
+    }
+  }
+}
+```
+
+## Related Documentation
+
+- [Model List Configuration](/configuration/model-list)
+- [Load Balancing](/guides/load-balancing)
+- [Provider Fallbacks](/guides/fallbacks)
+- [OpenAI Provider](/api/providers/openai)

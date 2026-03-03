@@ -1,0 +1,227 @@
+---
+title: Raspberry Pi Deployment
+description: Deploy PicoClaw on Raspberry Pi devices, including Pi Zero 2 W
+---
+
+## Overview
+
+PicoClaw's ultra-lightweight design makes it perfect for Raspberry Pi devices. With less than 10MB RAM usage and fast startup times, it runs smoothly even on low-powered boards like the Pi Zero 2 W.
+
+## Supported Devices
+
+- Raspberry Pi Zero 2 W (tested)
+- Raspberry Pi 3/4/5
+- Any Raspberry Pi with ARMv7 (32-bit) or ARM64 (64-bit) support
+
+## Performance Expectations
+
+| Metric | Performance |
+|--------|-------------|
+| **RAM Usage** | < 10MB |
+| **Boot Time** | ~1 second (even on 0.6GHz single core) |
+| **Architecture** | ARM (32-bit), ARM64 (64-bit) |
+
+## Installation Methods
+
+### Method 1: Download Precompiled Binary
+
+1. **Download the appropriate binary** for your Raspberry Pi OS:
+
+```bash
+# For 32-bit Raspberry Pi OS
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm
+chmod +x picoclaw-linux-arm
+sudo mv picoclaw-linux-arm /usr/local/bin/picoclaw
+
+# For 64-bit Raspberry Pi OS
+wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+chmod +x picoclaw-linux-arm64
+sudo mv picoclaw-linux-arm64 /usr/local/bin/picoclaw
+```
+
+<Note>
+Replace `v0.1.1` with the latest version from the [Releases page](https://github.com/sipeed/picoclaw/releases).
+</Note>
+
+2. **Initialize PicoClaw**:
+
+```bash
+picoclaw onboard
+```
+
+3. **Configure** your API keys in `~/.picoclaw/config.json`
+
+4. **Test the installation**:
+
+```bash
+picoclaw agent -m "Hello from Raspberry Pi!"
+```
+
+### Method 2: Build from Source
+
+Building from source gives you the latest features and allows customization.
+
+#### Prerequisites
+
+```bash
+# Install Go 1.21 or higher
+sudo apt update
+sudo apt install -y golang-go git make
+
+# Verify Go installation
+go version
+```
+
+#### Build Instructions
+
+```bash
+# Clone the repository
+git clone https://github.com/sipeed/picoclaw.git
+cd picoclaw
+
+# Install dependencies
+make deps
+
+# Build for your Raspberry Pi
+# For 32-bit OS (ARMv7):
+make build-linux-arm
+
+# For 64-bit OS (ARM64):
+make build-linux-arm64
+
+# Or build both versions:
+make build-pi-zero
+```
+
+#### Binary Locations
+
+After building:
+
+- 32-bit binary: `build/picoclaw-linux-arm`
+- 64-bit binary: `build/picoclaw-linux-arm64`
+
+#### Install the Binary
+
+```bash
+# For 32-bit:
+sudo cp build/picoclaw-linux-arm /usr/local/bin/picoclaw
+
+# For 64-bit:
+sudo cp build/picoclaw-linux-arm64 /usr/local/bin/picoclaw
+
+# Make it executable
+sudo chmod +x /usr/local/bin/picoclaw
+```
+
+## Determining Your OS Architecture
+
+Use the binary that matches your Raspberry Pi OS:
+
+```bash
+# Check your architecture
+uname -m
+```
+
+| Output | OS Type | Binary to Use |
+|--------|---------|---------------|
+| `armv7l` | 32-bit | `picoclaw-linux-arm` |
+| `aarch64` | 64-bit | `picoclaw-linux-arm64` |
+
+## Configuration
+
+### Basic Configuration
+
+After installation, configure PicoClaw:
+
+```bash
+picoclaw onboard
+```
+
+Edit `~/.picoclaw/config.json` to set your API keys:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key"
+    }
+  ]
+}
+```
+
+### Running as a Service
+
+For always-on operation, see the [systemd setup guide](/deployment/systemd).
+
+## Raspberry Pi Zero 2 W Specific Notes
+
+The Pi Zero 2 W has:
+- 512MB RAM (PicoClaw uses &lt;10MB)
+- 1GHz quad-core ARM Cortex-A53
+- WiFi and Bluetooth
+
+**Tips for Pi Zero 2 W:**
+
+1. **Use 32-bit OS** - Better memory efficiency on 512MB RAM
+2. **Enable swap** - Recommended for stability:
+
+```bash
+sudo dphys-swapfile swapoff
+sudo nano /etc/dphys-swapfile
+# Set CONF_SWAPSIZE=512
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+```
+
+3. **Optimize config** - Use lower `max_tokens` to reduce memory:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "max_tokens": 4096
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### Binary Won't Run
+
+```bash
+# Check file permissions
+ls -l /usr/local/bin/picoclaw
+
+# Make it executable
+sudo chmod +x /usr/local/bin/picoclaw
+```
+
+### Out of Memory Errors
+
+- Check current memory usage: `free -h`
+- Reduce `max_tokens` in config
+- Enable swap (see Pi Zero notes above)
+- Close other applications
+
+### Slow Performance
+
+- Ensure you're using the correct binary for your architecture
+- Check CPU temperature: `vcgencmd measure_temp`
+- Ensure adequate cooling
+
+## Next Steps
+
+- [Run as a System Service](/deployment/systemd) - Auto-start on boot
+- [Configure Chat Apps](/chat-apps) - Connect Telegram, Discord, etc.
+- [Environment Variables](/configuration/environment-variables) - Advanced configuration

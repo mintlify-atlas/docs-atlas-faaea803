@@ -1,0 +1,251 @@
+---
+title: Legacy Providers Configuration
+description: Old providers config format (deprecated, use model_list instead)
+---
+
+<Warning>
+  The `providers` configuration format is **deprecated**. Use the new [`model_list`](/configuration/models) format instead for better flexibility and zero-code provider addition.
+</Warning>
+
+## Overview
+
+The legacy `providers` configuration was PicoClaw's original way to configure LLM providers. It's still supported for backward compatibility, but new configurations should use `model_list`.
+
+## Legacy Configuration Format
+
+```json
+{
+  "providers": {
+    "zhipu": {
+      "api_key": "your-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    },
+    "openai": {
+      "api_key": "sk-...",
+      "api_base": "https://api.openai.com/v1"
+    },
+    "anthropic": {
+      "api_key": "sk-ant-...",
+      "api_base": "https://api.anthropic.com/v1"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "zhipu",
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+## Supported Legacy Providers
+
+- `anthropic` - Anthropic Claude
+- `openai` - OpenAI GPT
+- `litellm` - LiteLLM Proxy
+- `openrouter` - OpenRouter
+- `groq` - Groq
+- `zhipu` - Zhipu AI (智谱)
+- `vllm` - vLLM
+- `gemini` - Google Gemini
+- `nvidia` - NVIDIA
+- `ollama` - Ollama (local)
+- `moonshot` - Moonshot AI
+- `shengsuanyun` - ShengsuanYun
+- `deepseek` - DeepSeek
+- `cerebras` - Cerebras
+- `volcengine` - Volcengine (火山引擎)
+- `github_copilot` - GitHub Copilot
+- `antigravity` - Google Cloud Code Assist
+- `qwen` - Alibaba Qwen
+- `mistral` - Mistral AI
+
+## Migration to model_list
+
+### Example 1: Single Provider
+
+**Old format:**
+```json
+{
+  "providers": {
+    "zhipu": {
+      "api_key": "your-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "zhipu",
+      "model": "glm-4.7"
+    }
+  }
+}
+```
+
+**New format:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4.7",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-key",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "glm-4.7"
+    }
+  }
+}
+```
+
+### Example 2: Multiple Providers
+
+**Old format:**
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-openai-key"
+    },
+    "anthropic": {
+      "api_key": "sk-ant-key"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4.6"
+    }
+  }
+}
+```
+
+**New format:**
+```json
+{
+  "model_list": [
+    {
+      "model_name": "gpt-5.2",
+      "model": "openai/gpt-5.2",
+      "api_key": "sk-openai-key"
+    },
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-key"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "claude-sonnet-4.6"
+    }
+  }
+}
+```
+
+## Automatic Migration
+
+PicoClaw automatically migrates legacy configurations at runtime:
+
+1. If `model_list` is empty and `providers` has configuration
+2. PicoClaw converts `providers` to `model_list` internally
+3. Your config file is **not** modified
+4. You can manually update to the new format at any time
+
+## Environment Variables (Legacy)
+
+Legacy provider environment variables still work:
+
+```bash
+# Zhipu
+PICOCLAW_PROVIDERS_ZHIPU_API_KEY=your-key
+PICOCLAW_PROVIDERS_ZHIPU_API_BASE=https://open.bigmodel.cn/api/paas/v4
+
+# OpenAI
+PICOCLAW_PROVIDERS_OPENAI_API_KEY=sk-...
+PICOCLAW_PROVIDERS_OPENAI_API_BASE=https://api.openai.com/v1
+
+# Anthropic
+PICOCLAW_PROVIDERS_ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Provider-Specific Options
+
+### Request Timeout
+
+Set custom timeout for provider requests (seconds):
+
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-...",
+      "request_timeout": 300
+    }
+  }
+}
+```
+
+### Proxy Configuration
+
+Configure HTTP proxy for provider:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-...",
+      "proxy": "http://proxy.example.com:8080"
+    }
+  }
+}
+```
+
+### OpenAI Web Search
+
+Enable web search augmentation for OpenAI:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "sk-...",
+      "web_search": true
+    }
+  }
+}
+```
+
+### GitHub Copilot Connect Mode
+
+```json
+{
+  "providers": {
+    "github_copilot": {
+      "connect_mode": "grpc",
+      "api_base": "http://localhost:4321"
+    }
+  }
+}
+```
+
+Values: `stdio` or `grpc`
+
+## Why Migrate?
+
+The new `model_list` format provides:
+
+1. **Multiple models per provider** - Configure GPT-5.2 and GPT-4o separately
+2. **Load balancing** - Multiple endpoints for the same model
+3. **Better fallbacks** - Explicit model fallback chains
+4. **Zero-code providers** - Add OpenAI-compatible APIs without code changes
+5. **Cleaner configuration** - Model-centric instead of provider-centric
+
+## Next Steps
+
+- [Model Configuration (New Format)](/configuration/models)
+- [Agent Configuration](/configuration/agents)
+- [Environment Variables](/configuration/environment-variables)

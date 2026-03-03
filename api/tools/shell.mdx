@@ -1,0 +1,361 @@
+---
+title: Shell Tool
+description: Execute shell commands safely with comprehensive security controls
+---
+
+The `exec` tool allows agents to execute shell commands with extensive safety guards, timeout controls, and workspace restrictions.
+
+## exec
+
+Execute a shell command and return its output.
+
+### Parameters
+
+<ParamField path="command" type="string" required>
+  The shell command to execute.
+</ParamField>
+
+<ParamField path="working_dir" type="string">
+  Optional working directory for the command. If not specified, uses the tool's default working directory.
+</ParamField>
+
+### Returns
+
+<ResponseField name="output" type="string">
+  The combined stdout and stderr output from the command. If stderr is present, it's appended with a "STDERR:" header.
+</ResponseField>
+
+<ResponseField name="exit_code" type="number">
+  The exit code of the command (included in output if non-zero).
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "exec",
+  "parameters": {
+    "command": "ls -la",
+    "working_dir": "/home/user/project"
+  }
+}
+```
+
+---
+
+## Security Model
+
+### Deny Patterns
+
+The exec tool blocks dangerous commands by default using pattern matching:
+
+#### Destructive Operations
+- `rm -rf` / `rm -f` - Recursive/forced file deletion
+- `del /f` / `rmdir /s` - Windows deletion commands
+- `format`, `mkfs`, `diskpart` - Disk formatting
+- `dd if=` - Disk imaging/wiping
+- Writes to block devices (`> /dev/sd*`, etc.)
+
+#### System Control
+- `shutdown`, `reboot`, `poweroff`
+- Fork bombs (`: () { ... };:`)
+
+#### Command Injection
+- Command substitution: `$(...)`, `` `...` ``
+- Variable expansion: `${...}`
+- Pipe to shell: `| sh`, `| bash`
+- Chained dangerous commands: `; rm -rf`, `&& rm -rf`
+- Heredoc: `<< EOF`
+
+#### Privilege Escalation
+- `sudo`
+- `chmod`, `chown`
+- `pkill`, `killall`, `kill -9`
+
+#### Remote Execution
+- `curl ... | sh`
+- `wget ... | bash`
+- `ssh user@host`
+- `eval`
+- `source script.sh`
+
+#### Package Management
+- `npm install -g`
+- `pip install --user`
+- `apt install/remove/purge`
+- `yum install/remove`
+- `dnf install/remove`
+
+#### Container & Version Control
+- `docker run`, `docker exec`
+- `git push`, `git force`
+
+### Custom Patterns
+
+You can extend or override deny patterns:
+
+```yaml
+tools:
+  exec:
+    enable_deny_patterns: true
+    custom_deny_patterns:
+      - "\\bmycriticalcmd\\b"
+      - "\\bdangerous-operation\\b"
+```
+
+### Allow Patterns
+
+Explicitly allow commands that match deny patterns:
+
+```yaml
+tools:
+  exec:
+    enable_deny_patterns: true
+    custom_allow_patterns:
+      - "^npm install --save"  # Allow specific npm install
+      - "^git push origin feature-"  # Allow feature branch pushes
+```
+
+Allow patterns take precedence over deny patterns.
+
+### Disable All Deny Patterns
+
+```yaml
+tools:
+  exec:
+    enable_deny_patterns: false
+```
+
+<Warning>
+  Disabling deny patterns removes all safety guards. Only use in trusted environments.
+</Warning>
+
+---
+
+## Workspace Restriction
+
+When enabled, workspace restriction prevents commands from accessing files outside the workspace:
+
+```go
+tool := NewExecTool("/home/user/project", true) // restrict=true
+```
+
+### Path Traversal Protection
+
+- Blocks `../` in commands
+- Blocks `..\\` on Windows
+
+### Absolute Path Validation
+
+Extracts absolute paths from commands and validates them:
+
+```bash
+cat /etc/passwd        # ❌ Blocked (outside workspace)
+cat /home/user/project/config.txt  # ✅ Allowed
+```
+
+### Safe Paths
+
+These pseudo-devices are always allowed:
+- `/dev/null`
+- `/dev/zero`
+- `/dev/random`, `/dev/urandom`
+- `/dev/stdin`, `/dev/stdout`, `/dev/stderr`
+
+### Working Directory Validation
+
+If `working_dir` is provided, it's validated against the workspace:
+
+```json
+{
+  "command": "ls",
+  "working_dir": "/tmp"  // ❌ Blocked if outside workspace
+}
+```
+
+---
+
+## Timeout Control
+
+Commands have a default 60-second timeout. Configure custom timeouts:
+
+```go
+tool := NewExecTool(workspace, false)
+tool.SetTimeout(5 * time.Minute)
+```
+
+For no timeout:
+```go
+tool.SetTimeout(0)
+```
+
+### Timeout Behavior
+
+1. When timeout is reached, sends termination signal to process
+2. Waits 2 seconds for graceful shutdown
+3. Force kills if process doesn't exit
+4. Returns partial output with timeout error
+
+```
+Command timed out after 1m0s
+```
+
+---
+
+## Output Handling
+
+### Combined Output
+
+Stdout and stderr are captured separately, then combined:
+
+```
+[stdout content]
+
+STDERR:
+[stderr content]
+```
+
+### Exit Codes
+
+Non-zero exit codes are appended to output:
+
+```
+Error: file not found
+
+STDERR:
+ls: cannot access 'missing': No such file or directory
+Exit code: exit status 1
+```
+
+### Truncation
+
+Output is truncated at 10,000 characters:
+
+```
+[first 10000 chars]
+... (truncated, 5000 more chars)
+```
+
+### Empty Output
+
+```
+(no output)
+```
+
+---
+
+## Platform Support
+
+### Unix/Linux/macOS
+
+Commands execute via:
+```bash
+sh -c "command"
+```
+
+### Windows
+
+Commands execute via:
+```powershell
+powershell -NoProfile -NonInteractive -Command "command"
+```
+
+---
+
+## Process Management
+
+### Process Groups
+
+On Unix systems, commands run in their own process group to ensure all child processes are terminated on timeout or cancellation.
+
+### Termination
+
+1. **Graceful**: Sends termination signal to process group
+2. **Force**: If process doesn't exit within 2 seconds, sends SIGKILL
+3. **Cleanup**: Ensures all child processes are terminated
+
+---
+
+## Error Handling
+
+### Guard Errors
+
+```json
+{
+  "error": "Command blocked by safety guard (dangerous pattern detected)"
+}
+```
+
+```json
+{
+  "error": "Command blocked by safety guard (path outside working dir)"
+}
+```
+
+```json
+{
+  "error": "Command blocked by safety guard (path traversal detected)"
+}
+```
+
+### Execution Errors
+
+```json
+{
+  "error": "failed to start command: exec: \"nonexistent\": executable file not found in $PATH"
+}
+```
+
+### Timeout Errors
+
+```json
+{
+  "error": "Command timed out after 1m0s",
+  "output": "[partial output before timeout]"
+}
+```
+
+---
+
+## Best Practices
+
+### 1. Use Specific Commands
+
+```json
+// ✅ Good
+{ "command": "grep -r 'TODO' src/" }
+
+// ❌ Avoid
+{ "command": "find . -type f -exec grep 'TODO' {} \\;" }
+```
+
+### 2. Validate Paths
+
+```json
+// ✅ Good
+{ "command": "cat config/settings.json" }
+
+// ❌ Avoid
+{ "command": "cat $(find / -name settings.json)" }
+```
+
+### 3. Set Working Directory
+
+```json
+// ✅ Good
+{
+  "command": "npm test",
+  "working_dir": "/project"
+}
+
+// ❌ Avoid
+{ "command": "cd /project && npm test" }
+```
+
+### 4. Handle Errors Gracefully
+
+Check exit codes and parse stderr for error handling.
+
+### 5. Use File Tools When Possible
+
+Prefer `read_file` over `cat`, `write_file` over `echo >`, etc.

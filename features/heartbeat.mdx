@@ -1,0 +1,274 @@
+---
+title: Heartbeat (Periodic Tasks)
+description: Automatic periodic task execution with async subagent support
+---
+
+PicoClaw's heartbeat system allows the agent to perform tasks automatically at regular intervals. This is perfect for periodic checks, monitoring, reminders, and background automation.
+
+## Overview
+
+The heartbeat system reads tasks from a `HEARTBEAT.md` file in your workspace and executes them at a configurable interval (default: every 30 minutes).
+
+### Key Features
+
+- **Automatic execution** - Tasks run in the background without manual intervention
+- **Async subagents** - Long-running tasks execute independently via `spawn` tool
+- **Flexible scheduling** - Configure check interval (minimum 5 minutes)
+- **Independent communication** - Subagents can message users directly
+- **Non-blocking** - Heartbeat continues to next task while subagents work
+
+## Configuration
+
+Add heartbeat configuration to `~/.picoclaw/config.json`:
+
+```json
+{
+  "heartbeat": {
+    "enabled": true,
+    "interval": 30
+  }
+}
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable/disable heartbeat |
+| `interval` | integer | `30` | Check interval in minutes (minimum: 5) |
+
+### Environment Variables
+
+You can override configuration with environment variables:
+
+```bash
+# Disable heartbeat
+export PICOCLAW_HEARTBEAT_ENABLED=false
+
+# Set interval to 60 minutes
+export PICOCLAW_HEARTBEAT_INTERVAL=60
+
+# Run gateway
+picoclaw gateway
+```
+
+## Creating Tasks
+
+Create a `HEARTBEAT.md` file in your workspace:
+
+```bash
+vim ~/.picoclaw/workspace/HEARTBEAT.md
+```
+
+### Simple Tasks
+
+For quick tasks that complete immediately:
+
+```markdown
+# Periodic Tasks
+
+## Quick Tasks (respond directly)
+
+- Report current time
+- Check system uptime
+- Show disk usage
+```
+
+### Long-Running Tasks
+
+For tasks that take time (web search, API calls, etc.), use the `spawn` tool:
+
+```markdown
+# Periodic Tasks
+
+## Quick Tasks (respond directly)
+
+- Report current time
+
+## Long Tasks (use spawn for async)
+
+- Search the web for AI news and summarize
+- Check email and report important messages
+- Monitor server health and alert on issues
+```
+
+## The Spawn Tool
+
+The `spawn` tool creates a **subagent** - an independent agent instance that runs tasks asynchronously.
+
+### How Spawn Works
+
+```
+Heartbeat triggers
+    ↓
+Agent reads HEARTBEAT.md
+    ↓
+For long task: spawn subagent
+    ↓                           ↓
+Continue to next task      Subagent works independently
+    ↓                           ↓
+All tasks done            Subagent uses "message" tool
+    ↓                           ↓
+Respond HEARTBEAT_OK      User receives result directly
+```
+
+### Spawn Tool Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task` | string | Yes | The task for subagent to complete |
+| `label` | string | No | Short label for display purposes |
+| `agent_id` | string | No | Target agent ID to delegate task to |
+
+### Subagent Characteristics
+
+| Feature | Description |
+|---------|-------------|
+| **Independent context** | Subagent has its own context, no access to parent session history |
+| **Non-blocking** | Parent agent continues immediately after spawning |
+| **Direct communication** | Subagent uses `message` tool to communicate with user |
+| **Full tool access** | Subagent has access to all tools (web_search, filesystem, etc.) |
+| **Isolated execution** | Subagent failures don't affect parent agent |
+
+## Example HEARTBEAT.md
+
+Here's a comprehensive example:
+
+```markdown
+# Periodic Tasks
+
+These tasks run automatically every 30 minutes.
+
+## Immediate Tasks
+
+These complete quickly and report directly:
+
+- Check current time and date
+- Report system uptime
+- Show workspace disk usage
+
+## Background Tasks
+
+These use spawn for async execution:
+
+### News Monitoring
+- Search for "latest AI developments" and summarize top 3 articles
+- Search for "PicoClaw updates" on GitHub
+
+### System Monitoring  
+- Check `/var/log/syslog` for errors in last 30 minutes
+- Monitor memory usage and alert if >90%
+
+### Communication
+- Check email for urgent messages from team
+- Scan Discord for mentions
+
+## Notes
+
+- Keep tasks concise and specific
+- Use spawn for anything taking >5 seconds
+- Subagents will message me directly with results
+```
+
+## Security and Sandboxing
+
+Heartbeat tasks inherit the same security restrictions as the main agent:
+
+| Setting | Behavior |
+|---------|----------|
+| `restrict_to_workspace: true` | All tasks (including subagents) restricted to workspace |
+| `restrict_to_workspace: false` | All tasks can access full filesystem |
+
+**No bypass possible** - Subagents cannot escape security boundaries.
+
+### Security Consistency
+
+| Execution Path | Security Boundary |
+|----------------|-------------------|
+| Main Agent | `restrict_to_workspace` ✅ |
+| Heartbeat tasks | Inherits same restriction ✅ |
+| Subagent / Spawn | Inherits same restriction ✅ |
+
+## Best Practices
+
+### Task Design
+
+✅ **Do:**
+- Keep task descriptions clear and specific
+- Use spawn for web searches and API calls
+- Group related tasks under sections
+- Set reasonable intervals (15-60 minutes typical)
+
+❌ **Don't:**
+- Create tasks that modify critical system files
+- Use heartbeat for real-time monitoring (use cron instead)
+- Spawn too many subagents simultaneously
+- Set intervals below 5 minutes (minimum enforced)
+
+### Performance Tips
+
+- **Limit spawned tasks**: Each subagent uses resources
+- **Batch related operations**: Combine similar checks
+- **Adjust interval**: Longer intervals = lower resource usage
+- **Monitor logs**: Check for task failures or timeouts
+
+## Troubleshooting
+
+### Tasks Not Running
+
+1. Check heartbeat is enabled:
+```json
+{
+  "heartbeat": {
+    "enabled": true
+  }
+}
+```
+
+2. Verify HEARTBEAT.md exists:
+```bash
+ls -la ~/.picoclaw/workspace/HEARTBEAT.md
+```
+
+3. Check logs for errors:
+```bash
+picoclaw gateway 2>&1 | grep heartbeat
+```
+
+### Subagents Not Responding
+
+- Check that tasks explicitly mention using spawn
+- Verify subagent has necessary tools enabled
+- Check for timeout issues in long-running tasks
+- Review logs for subagent errors
+
+### Performance Issues
+
+- Reduce number of spawned tasks
+- Increase heartbeat interval
+- Check subagent resource usage
+- Disable heartbeat temporarily if needed
+
+## Workspace Location
+
+Heartbeat reads from:
+```
+~/.picoclaw/workspace/HEARTBEAT.md
+```
+
+Or your configured workspace:
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/custom/path"
+    }
+  }
+}
+```
+
+## Related Features
+
+- [Scheduled Tasks (Cron)](/features/scheduled-tasks) - Schedule one-time and recurring reminders
+- [Memory System](/features/memory) - Persistent memory for task results
+- [Skills](/features/skills) - Extend capabilities with custom skills

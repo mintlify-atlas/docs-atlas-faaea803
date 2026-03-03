@@ -1,0 +1,445 @@
+---
+title: Web Tools
+description: Search the web and fetch content from URLs
+---
+
+PicoClaw provides two web tools: `web_search` for searching the internet and `web_fetch` for retrieving content from specific URLs.
+
+## web_search
+
+Search the web for current information using various search providers.
+
+### Parameters
+
+<ParamField path="query" type="string" required>
+  Search query string.
+</ParamField>
+
+<ParamField path="count" type="integer">
+  Number of results to return (1-10). Defaults to the provider's configured maximum.
+</ParamField>
+
+### Returns
+
+<ResponseField name="results" type="string">
+  Formatted search results with titles, URLs, and snippets:
+  ```
+  Results for: {query}
+  1. {title}
+     {url}
+     {description}
+  2. {title}
+     {url}
+     {description}
+  ```
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "web_search",
+  "parameters": {
+    "query": "PicoClaw AI agent framework",
+    "count": 5
+  }
+}
+```
+
+---
+
+## Search Providers
+
+PicoClaw supports multiple search providers with automatic fallback:
+
+### Provider Priority
+
+1. **Perplexity** (AI-powered search)
+2. **Brave Search** (privacy-focused)
+3. **Tavily** (AI-optimized search)
+4. **DuckDuckGo** (no API key required)
+
+The first enabled provider with valid credentials is used.
+
+### Perplexity Search
+
+AI-powered search using Perplexity's `sonar` model.
+
+**Configuration:**
+```yaml
+tools:
+  web_search:
+    provider: perplexity
+    perplexity:
+      api_key: "pplx-..."
+      max_results: 5
+```
+
+**Features:**
+- LLM-generated search summaries
+- Structured result format
+- Longer response times (30s timeout)
+
+### Brave Search
+
+Direct API access to Brave Search.
+
+**Configuration:**
+```yaml
+tools:
+  web_search:
+    provider: brave
+    brave:
+      api_key: "BSA..."
+      max_results: 5
+```
+
+**Features:**
+- Privacy-focused
+- Fast response times
+- Rich result metadata
+
+### Tavily Search
+
+Search API optimized for AI applications.
+
+**Configuration:**
+```yaml
+tools:
+  web_search:
+    provider: tavily
+    tavily:
+      api_key: "tvly-..."
+      base_url: "https://api.tavily.com/search"  # optional
+      max_results: 5
+```
+
+**Features:**
+- Advanced search depth
+- AI-optimized results
+- Content extraction
+
+### DuckDuckGo Search
+
+HTML scraping-based search (no API key required).
+
+**Configuration:**
+```yaml
+tools:
+  web_search:
+    provider: duckduckgo
+    duckduckgo:
+      max_results: 5
+```
+
+**Features:**
+- No API key required
+- Privacy-focused
+- May be less reliable (HTML parsing)
+
+---
+
+## web_fetch
+
+Fetch content from a URL and extract readable text.
+
+### Parameters
+
+<ParamField path="url" type="string" required>
+  URL to fetch. Must use `http://` or `https://` scheme.
+</ParamField>
+
+<ParamField path="maxChars" type="integer">
+  Maximum characters to extract. Defaults to 50,000. Minimum 100.
+</ParamField>
+
+### Returns
+
+<ResponseField name="result" type="object">
+  JSON object containing:
+  - `url`: The fetched URL
+  - `status`: HTTP status code
+  - `extractor`: Type of content extraction used (`"text"`, `"json"`, or `"raw"`)
+  - `truncated`: Boolean indicating if content was truncated
+  - `length`: Number of characters in extracted text
+  - `text`: The extracted content
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "web_fetch",
+  "parameters": {
+    "url": "https://example.com/article",
+    "maxChars": 10000
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "url": "https://example.com/article",
+  "status": 200,
+  "extractor": "text",
+  "truncated": false,
+  "length": 8542,
+  "text": "Article Title\n\nArticle content..."
+}
+```
+
+---
+
+## Content Extraction
+
+### HTML to Text
+
+For HTML content, `web_fetch` extracts readable text:
+
+1. Remove `<script>` and `<style>` tags
+2. Remove all HTML tags
+3. Normalize whitespace
+4. Clean up blank lines
+5. Trim and format
+
+**Before:**
+```html
+<html>
+  <head><style>...</style></head>
+  <body>
+    <h1>Title</h1>
+    <p>Content here</p>
+  </body>
+</html>
+```
+
+**After:**
+```
+Title
+
+Content here
+```
+
+### JSON Formatting
+
+For JSON content, pretty-prints the response:
+
+```json
+{
+  "name": "example",
+  "values": [1, 2, 3]
+}
+```
+
+### Raw Content
+
+For other content types, returns raw response body.
+
+---
+
+## Security & Limits
+
+### URL Validation
+
+- Only `http://` and `https://` schemes allowed
+- Must include a domain
+
+```json
+// ✅ Valid
+{ "url": "https://example.com" }
+{ "url": "http://api.example.com/data" }
+
+// ❌ Invalid
+{ "url": "file:///etc/passwd" }
+{ "url": "ftp://example.com" }
+{ "url": "https://" }  // Missing domain
+```
+
+### Size Limits
+
+**Default limit:** 10 MB per request
+
+Configure custom limits:
+```go
+tool := NewWebFetchTool(
+    50000,              // maxChars
+    20 * 1024 * 1024,   // fetchLimitBytes (20MB)
+)
+```
+
+If response exceeds limit:
+```json
+{
+  "error": "failed to read response: size exceeded 10485760 bytes limit"
+}
+```
+
+### Character Truncation
+
+Extracted text is truncated at `maxChars`:
+
+```json
+{
+  "truncated": true,
+  "length": 50000,
+  "text": "[first 50000 characters]..."
+}
+```
+
+### Redirect Handling
+
+- Maximum 5 redirects
+- Follows redirects automatically
+- Returns final URL in response
+
+### Timeout
+
+- 60 second timeout per request
+- Includes DNS resolution, connection, and transfer time
+
+---
+
+## Proxy Support
+
+Both web tools support HTTP/HTTPS/SOCKS5 proxies:
+
+```go
+tool := NewWebFetchToolWithProxy(
+    50000,
+    "http://proxy.example.com:8080",
+    10 * 1024 * 1024,
+)
+```
+
+**Supported proxy schemes:**
+- `http://`
+- `https://`
+- `socks5://`
+- `socks5h://` (DNS resolution through proxy)
+
+**Proxy authentication:**
+```
+http://user:pass@proxy.example.com:8080
+```
+
+---
+
+## Error Handling
+
+### web_search Errors
+
+```json
+{ "error": "query is required" }
+{ "error": "search failed: API key invalid" }
+{ "error": "request failed: connection timeout" }
+```
+
+### web_fetch Errors
+
+```json
+{ "error": "url is required" }
+{ "error": "invalid URL: parse error" }
+{ "error": "only http/https URLs are allowed" }
+{ "error": "missing domain in URL" }
+{ "error": "request failed: connection refused" }
+{ "error": "failed to read response: size exceeded limit" }
+```
+
+---
+
+## Best Practices
+
+### Search Queries
+
+```json
+// ✅ Good - Specific queries
+{ "query": "Golang error handling best practices 2024" }
+
+// ❌ Avoid - Too vague
+{ "query": "programming" }
+```
+
+### Fetching Content
+
+```json
+// ✅ Good - Set appropriate maxChars
+{
+  "url": "https://docs.example.com/api",
+  "maxChars": 20000
+}
+
+// ❌ Avoid - Fetching entire large pages
+{
+  "url": "https://en.wikipedia.org/wiki/History",
+  "maxChars": 500000
+}
+```
+
+### Result Limits
+
+```json
+// ✅ Good - Request only needed results
+{ "query": "...", "count": 3 }
+
+// ❌ Avoid - Requesting maximum unnecessarily
+{ "query": "...", "count": 10 }
+```
+
+### Error Recovery
+
+- Handle search failures gracefully
+- Implement retry logic for transient errors
+- Fall back to alternative search terms
+- Check HTTP status codes from `web_fetch`
+
+---
+
+## Use Cases
+
+### News & Current Events
+
+```json
+{
+  "tool": "web_search",
+  "parameters": {
+    "query": "latest AI developments December 2024",
+    "count": 5
+  }
+}
+```
+
+### Documentation Lookup
+
+```json
+{
+  "tool": "web_fetch",
+  "parameters": {
+    "url": "https://golang.org/doc/effective_go",
+    "maxChars": 30000
+  }
+}
+```
+
+### API Data Retrieval
+
+```json
+{
+  "tool": "web_fetch",
+  "parameters": {
+    "url": "https://api.github.com/repos/sipeed/picoclaw"
+  }
+}
+```
+
+### Fact Checking
+
+```json
+{
+  "tool": "web_search",
+  "parameters": {
+    "query": "Eiffel Tower height official measurement",
+    "count": 3
+  }
+}
+```

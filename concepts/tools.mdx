@@ -1,0 +1,802 @@
+---
+title: Tools
+description: Understanding PicoClaw's tool system and available capabilities
+---
+
+## Overview
+
+Tools extend agent capabilities by providing interfaces to external systems, APIs, and operations. PicoClaw's tool system is designed for safety, extensibility, and minimal overhead.
+
+## Tool Interface
+
+All tools implement the `Tool` interface (`pkg/tools/types.go`):
+
+```go
+type Tool interface {
+    Name() string                                    // Tool identifier
+    Description() string                              // Human-readable description
+    Parameters() map[string]any                       // JSON Schema for arguments
+    Execute(ctx context.Context, args map[string]any) *ToolResult
+}
+
+type ToolResult struct {
+    ForLLM  string   // Result sent to LLM
+    ForUser string   // Result shown to user (if different)
+    Silent  bool     // If true, don't send ForUser to user
+    IsError bool     // Indicates execution failure
+    Err     error    // Original error (if any)
+    Async   bool     // Tool running in background
+    Media   []string // Media references (media://...)
+}
+```
+
+### Optional Interfaces
+
+#### ContextualTool
+
+Tools that need channel/chat context:
+
+```go
+type ContextualTool interface {
+    Tool
+    SetContext(channel, chatID string)
+}
+```
+
+**Examples**: `message`, `spawn`, `cron`
+
+#### AsyncTool
+
+Tools that run in background:
+
+```go
+type AsyncTool interface {
+    Tool
+    SetCallback(cb AsyncCallback)
+}
+
+type AsyncCallback func(ctx context.Context, result *ToolResult)
+```
+
+**Examples**: `spawn`
+
+## Tool Registry
+
+Central registry for all available tools (`pkg/tools/registry.go`):
+
+```go
+type ToolRegistry struct {
+    tools map[string]Tool
+    mu    sync.RWMutex
+}
+
+// Core methods
+func (r *ToolRegistry) Register(tool Tool)
+func (r *ToolRegistry) Get(name string) (Tool, bool)
+func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string]any) *ToolResult
+func (r *ToolRegistry) ToProviderDefs() []providers.ToolDefinition
+```
+
+**Features:**
+- Thread-safe registration and execution
+- Automatic conversion to LLM tool definitions
+- Deterministic ordering (sorted alphabetically) for cache stability
+- Context injection for contextual tools
+- Async callback support
+
+## Available Tools
+
+### Filesystem Tools
+
+#### read_file
+
+Read file contents.
+
+**Parameters:**
+```json
+{
+  "path": "./data/config.json"
+}
+```
+
+**Restrictions:**
+- Restricted to workspace if `restrict_to_workspace: true`
+- Respects `allow_read_paths` patterns
+- Symlink escape prevention
+
+**Implementation**: `pkg/tools/filesystem.go`
+
+#### write_file
+
+Write content to file.
+
+**Parameters:**
+```json
+{
+  "path": "./output.txt",
+  "content": "Hello, world!"
+}
+```
+
+**Features:**
+- Atomic write with sync (flash-safe)
+- Creates parent directories automatically
+- Uses secure permissions (0o600)
+
+**Restrictions:**
+- Restricted to workspace if `restrict_to_workspace: true`
+- Respects `allow_write_paths` patterns
+
+#### list_dir
+
+List directory contents.
+
+**Parameters:**
+```json
+{
+  "path": "./src"
+}
+```
+
+**Returns:**
+```
+DIR:  components
+FILE: main.go
+FILE: README.md
+```
+
+#### edit_file
+
+Search and replace in files.
+
+**Parameters:**
+```json
+{
+  "path": "./config.json",
+  "old_text": "\"debug\": false",
+  "new_text": "\"debug\": true"
+}
+```
+
+**Implementation**: `pkg/tools/edit.go`
+
+#### append_file
+
+Append content to file.
+
+**Parameters:**
+```json
+{
+  "path": "./log.txt",
+  "content": "New log entry\n"
+}
+```
+
+### Shell Tools
+
+#### exec
+
+Execute shell commands with safety guards.
+
+**Parameters:**
+```json
+{
+  "command": "ls -la",
+  "working_dir": "./src"  // Optional
+}
+```
+
+**Safety Features:**
+
+1. **Dangerous Pattern Blocking**:
+   - `rm -rf`, `del /f`, `rmdir /s`
+   - `format`, `mkfs`, `diskpart`
+   - `dd if=`, writes to `/dev/sd*`
+   - `shutdown`, `reboot`, `poweroff`
+   - Fork bombs
+   - Command substitution (`$(...)`, `` `...` ``)
+   - Pipe to shell (`| sh`, `| bash`)
+   - `sudo`, `chmod`, `chown`
+   - Package managers (`apt`, `yum`, `npm -g`)
+   - `docker run/exec`
+   - `git push/force`
+   - `eval`, `source`
+
+2. **Workspace Restriction**:
+   - Absolute paths validated against workspace
+   - Path traversal blocked (`../`)
+   - Safe paths allowed (`/dev/null`, `/dev/urandom`, etc.)
+
+3. **Custom Patterns**:
+   ```json
+   {
+     "tools": {
+       "exec": {
+         "enable_deny_patterns": true,
+         "custom_deny_patterns": ["\\bcurl\\b.*--upload-file"],
+         "custom_allow_patterns": ["^ls\\s"]
+       }
+     }
+   }
+   ```
+
+4. **Timeout**: Default 60s, configurable
+
+**Implementation**: `pkg/tools/shell.go`
+
+**Security Notes:**
+- Even with `restrict_to_workspace: false`, dangerous commands are blocked
+- Use `custom_allow_patterns` to override specific blocks
+
+### Web Tools
+
+#### web_search
+
+Search the web for information.
+
+**Parameters:**
+```json
+{
+  "query": "latest AI news",
+  "count": 5  // Optional, 1-10
+}
+```
+
+**Supported Providers** (priority order):
+1. **Perplexity** (LLM-enhanced search)
+2. **Brave Search** (fast, high-quality)
+3. **Tavily** (AI-optimized)
+4. **DuckDuckGo** (free, no API key)
+
+**Configuration:**
+```json
+{
+  "tools": {
+    "web": {
+      "brave": {
+        "enabled": true,
+        "api_key": "BSA...",
+        "max_results": 5
+      },
+      "duckduckgo": {
+        "enabled": true,
+        "max_results": 5
+      }
+    }
+  }
+}
+```
+
+**Returns:**
+```
+Results for: latest AI news
+1. AI Breakthrough Announced
+   https://example.com/ai-news
+   Description of the article...
+
+2. New Model Released
+   https://example.com/model
+   Details about the model...
+```
+
+**Implementation**: `pkg/tools/web.go`
+
+#### web_fetch
+
+Fetch and extract content from URLs.
+
+**Parameters:**
+```json
+{
+  "url": "https://example.com/article",
+  "maxChars": 10000  // Optional
+}
+```
+
+**Features:**
+- HTML to text conversion
+- JSON formatting
+- Redirect following (max 5)
+- Size limit (default 10MB)
+- Timeout: 60s
+
+**Returns:**
+```json
+{
+  "url": "https://example.com/article",
+  "status": 200,
+  "extractor": "text",
+  "truncated": false,
+  "length": 5432,
+  "text": "Article content..."
+}
+```
+
+### Communication Tools
+
+#### message
+
+Send message to user on a chat channel.
+
+**Parameters:**
+```json
+{
+  "content": "Task completed successfully!",
+  "channel": "telegram",  // Optional, uses current channel
+  "chat_id": "123456"     // Optional, uses current chat
+}
+```
+
+**Use Cases:**
+- Subagent → User communication
+- Multi-channel messaging
+- Background task notifications
+
+**Behavior:**
+- Returns `Silent: true` (user already received message)
+- Tracks sends per round to prevent duplicates
+
+**Implementation**: `pkg/tools/message.go`
+
+### Scheduling Tools
+
+#### cron
+
+Schedule reminders, tasks, or commands.
+
+**Actions:**
+
+##### add
+Create new scheduled task.
+
+**One-time reminder:**
+```json
+{
+  "action": "add",
+  "message": "Meeting in 10 minutes",
+  "at_seconds": 600  // 10 minutes from now
+}
+```
+
+**Recurring task:**
+```json
+{
+  "action": "add",
+  "message": "Daily standup reminder",
+  "every_seconds": 86400,  // Daily
+  "deliver": true  // Send directly to chat
+}
+```
+
+**Cron expression:**
+```json
+{
+  "action": "add",
+  "message": "Check server status",
+  "cron_expr": "0 9 * * *",  // Daily at 9am
+  "deliver": false  // Process through agent
+}
+```
+
+**Shell command:**
+```json
+{
+  "action": "add",
+  "message": "Check disk usage",
+  "command": "df -h",
+  "every_seconds": 3600  // Hourly
+}
+```
+
+##### list
+List all scheduled jobs.
+
+```json
+{"action": "list"}
+```
+
+##### remove
+Delete a job.
+
+```json
+{
+  "action": "remove",
+  "job_id": "abc123"
+}
+```
+
+##### enable/disable
+Toggle job execution.
+
+```json
+{
+  "action": "disable",
+  "job_id": "abc123"
+}
+```
+
+**Job Execution:**
+- `deliver: true`: Send message directly to channel
+- `deliver: false`: Process through agent (for complex tasks)
+- `command`: Execute shell command, report output
+
+**Implementation**: `pkg/tools/cron.go`
+
+### Agent Spawning Tools
+
+#### spawn
+
+Spawn subagent for background tasks.
+
+**Parameters:**
+```json
+{
+  "task": "Search for AI news and write a summary report",
+  "label": "AI News Research",  // Optional, for display
+  "agent_id": "researcher"       // Optional, target agent
+}
+```
+
+**Behavior:**
+- Creates independent subagent with fresh context
+- Subagent has access to all tools (message, web, etc.)
+- Non-blocking (main agent continues)
+- Subagent communicates via `message` tool
+
+**Permissions:**
+
+Controlled via `subagents.allowlist` config:
+```json
+{
+  "agents": {
+    "agents": [
+      {
+        "id": "main",
+        "subagents": {
+          "allowlist": ["researcher", "coder"]
+        }
+      }
+    ]
+  }
+}
+```
+
+**Use Cases:**
+- Long-running research tasks
+- Web scraping and analysis
+- Background monitoring
+- Parallel task execution
+
+**Implementation**: `pkg/tools/spawn.go`
+
+### Hardware Tools (Linux only)
+
+#### i2c
+
+I2C bus communication.
+
+**Parameters:**
+```json
+{
+  "bus": 1,
+  "address": 0x48,
+  "operation": "read",
+  "register": 0x00,
+  "length": 2
+}
+```
+
+**Availability**: Linux only, returns error on other platforms
+
+**Implementation**: `pkg/tools/i2c.go`
+
+#### spi
+
+SPI bus communication.
+
+**Parameters:**
+```json
+{
+  "device": "/dev/spidev0.0",
+  "data": [0x01, 0x02, 0x03]
+}
+```
+
+**Availability**: Linux only
+
+**Implementation**: `pkg/tools/spi.go`
+
+### Skill Management Tools
+
+#### find_skills
+
+Search skill registries.
+
+**Parameters:**
+```json
+{
+  "query": "web scraping"
+}
+```
+
+**Implementation**: `pkg/tools/skills_search.go`
+
+#### install_skill
+
+Install skill from registry.
+
+**Parameters:**
+```json
+{
+  "skill_id": "web-scraper",
+  "registry": "clawhub"  // Optional
+}
+```
+
+**Implementation**: `pkg/tools/skills_install.go`
+
+### MCP Tools
+
+Dynamic tools loaded from MCP (Model Context Protocol) servers.
+
+**Configuration:**
+```json
+{
+  "tools": {
+    "mcp": {
+      "enabled": true,
+      "servers": {
+        "filesystem": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+        }
+      }
+    }
+  }
+}
+```
+
+**Features:**
+- Auto-registers tools from connected MCP servers
+- Tool names prefixed with server name (e.g., `filesystem_read`)
+- Supports all MCP tool types
+
+**Implementation**: `pkg/tools/mcp_tool.go`
+
+## Tool Execution Flow
+
+```
+1. LLM returns tool call
+   ↓
+2. AgentLoop extracts tool calls
+   ↓
+3. For each tool call:
+   │
+   ├─ Lookup tool in registry
+   │
+   ├─ If ContextualTool: SetContext(channel, chatID)
+   │
+   ├─ If AsyncTool: SetCallback(asyncCallback)
+   │
+   ├─ Execute tool with args
+   │
+   ├─ If ForUser and not Silent: Send to user
+   │
+   ├─ If Media: Send media to user
+   │
+   └─ Append ForLLM to messages
+   ↓
+4. Continue to next LLM iteration
+```
+
+## Tool Safety
+
+### Workspace Sandboxing
+
+When `restrict_to_workspace: true` (default):
+
+**File Tools:**
+- All paths resolved relative to workspace
+- Absolute paths validated
+- Symlink escape prevention
+- Path traversal blocked
+
+**Shell Tool:**
+- Absolute paths in commands validated
+- Workspace boundary enforced
+- Dangerous commands blocked
+
+**Example:**
+```bash
+# Workspace: /home/user/.picoclaw/workspace
+
+# Allowed:
+./data/file.txt          → /home/user/.picoclaw/workspace/data/file.txt
+/home/user/.picoclaw/workspace/file.txt → OK
+
+# Blocked:
+../../../etc/passwd      → Access denied (path traversal)
+/etc/passwd              → Access denied (outside workspace)
+/home/user/documents/    → Access denied (outside workspace)
+```
+
+### Path Whitelisting
+
+Allow specific paths outside workspace:
+
+```json
+{
+  "tools": {
+    "allow_read_paths": [
+      "^/etc/hosts$",
+      "^/proc/cpuinfo$"
+    ],
+    "allow_write_paths": [
+      "^/tmp/picoclaw-.*"
+    ]
+  }
+}
+```
+
+**Pattern Syntax**: Regular expressions
+
+### Exec Safety Guards
+
+Multi-layer protection for shell commands:
+
+1. **Deny Patterns**: Block dangerous commands
+2. **Allow Patterns**: Override blocks for specific cases
+3. **Workspace Restriction**: Path validation
+4. **Timeout**: Prevent infinite execution
+
+**Disable All Deny Patterns** (dangerous):
+```json
+{
+  "tools": {
+    "exec": {
+      "enable_deny_patterns": false
+    }
+  }
+}
+```
+
+## Tool Result Patterns
+
+### Standard Result
+```go
+return &ToolResult{
+    ForLLM:  "File written successfully",
+    ForUser: "Saved to output.txt",
+}
+```
+
+### Silent Result
+```go
+return &ToolResult{
+    ForLLM:  "Message sent",
+    Silent:  true,  // Don't send ForUser to user
+}
+```
+
+### Error Result
+```go
+return &ToolResult{
+    ForLLM:  "Failed to read file: file not found",
+    IsError: true,
+    Err:     err,
+}
+```
+
+### Async Result
+```go
+return &ToolResult{
+    ForLLM: "Subagent spawned, task running in background",
+    Async:  true,
+}
+```
+
+### Media Result
+```go
+return &ToolResult{
+    ForLLM: "Screenshot captured",
+    Media:  []string{"media://abc123"},
+}
+```
+
+## Creating Custom Tools
+
+### 1. Implement Tool Interface
+
+```go
+package customtools
+
+import (
+    "context"
+    "github.com/sipeed/picoclaw/pkg/tools"
+)
+
+type GreetTool struct{}
+
+func (t *GreetTool) Name() string {
+    return "greet"
+}
+
+func (t *GreetTool) Description() string {
+    return "Greet a person by name"
+}
+
+func (t *GreetTool) Parameters() map[string]any {
+    return map[string]any{
+        "type": "object",
+        "properties": map[string]any{
+            "name": map[string]any{
+                "type":        "string",
+                "description": "Person's name",
+            },
+        },
+        "required": []string{"name"},
+    }
+}
+
+func (t *GreetTool) Execute(ctx context.Context, args map[string]any) *tools.ToolResult {
+    name, ok := args["name"].(string)
+    if !ok {
+        return tools.ErrorResult("name is required")
+    }
+    
+    greeting := fmt.Sprintf("Hello, %s!", name)
+    return tools.NewToolResult(greeting)
+}
+```
+
+### 2. Register Tool
+
+Modify `pkg/agent/loop.go`:
+
+```go
+func registerSharedTools(...) {
+    for _, agentID := range registry.ListAgentIDs() {
+        agent, _ := registry.GetAgent(agentID)
+        
+        // ... existing tools ...
+        
+        // Register custom tool
+        agent.Tools.Register(&customtools.GreetTool{})
+    }
+}
+```
+
+### 3. Rebuild and Test
+
+```bash
+make build
+./build/picoclaw agent -m "Greet Alice"
+```
+
+## Best Practices
+
+### 1. Tool Naming
+- Use lowercase with underscores: `read_file`, `web_search`
+- Be descriptive and action-oriented
+- Avoid conflicts with existing tools
+
+### 2. Parameter Validation
+- Always validate required parameters
+- Provide clear error messages
+- Use JSON Schema for type safety
+
+### 3. Error Handling
+- Return `ErrorResult()` for user-facing errors
+- Include original error in `Err` field
+- Keep error messages concise and actionable
+
+### 4. Performance
+- Set appropriate timeouts
+- Avoid blocking operations in Execute()
+- Use Async pattern for long tasks
+
+### 5. Security
+- Validate all user inputs
+- Sanitize file paths
+- Use workspace restrictions
+- Follow principle of least privilege

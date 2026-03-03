@@ -1,0 +1,447 @@
+---
+title: Agents
+description: Understanding PicoClaw's agent system and configuration
+---
+
+## What is an Agent?
+
+An agent in PicoClaw is an autonomous AI assistant instance with its own:
+
+- **Identity**: Name, personality, and role
+- **Workspace**: Isolated file storage and session history
+- **Model**: LLM provider and fallback chain
+- **Tools**: Available capabilities (filesystem, web, shell, etc.)
+- **Skills**: Loaded skill packages
+- **Context**: System prompt, memory, and conversation history
+
+## Agent Instance
+
+Defined in `pkg/agent/instance.go`:
+
+```go
+type AgentInstance struct {
+    ID             string                    // Unique identifier (e.g., "main", "worker")
+    Name           string                    // Display name
+    Model          string                    // Primary LLM model
+    Fallbacks      []string                  // Fallback model list
+    Workspace      string                    // Workspace directory path
+    MaxIterations  int                       // Max tool use loops per request
+    MaxTokens      int                       // Context window size
+    Temperature    float64                   // LLM sampling temperature (0.0-1.0)
+    Provider       providers.LLMProvider     // LLM provider instance
+    Sessions       *session.SessionManager   // Conversation history manager
+    ContextBuilder *ContextBuilder           // System prompt builder
+    Tools          *tools.ToolRegistry       // Available tools
+    Subagents      *config.SubagentsConfig   // Subagent spawn permissions
+    SkillsFilter   []string                  // Enabled skills (nil = all)
+    Candidates     []providers.FallbackCandidate // Resolved fallback chain
+}
+```
+
+## Agent Configuration
+
+### Default Agent
+
+Every PicoClaw instance has a default agent configured in `config.json`:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "max_tool_iterations": 20,
+      "restrict_to_workspace": true
+    }
+  }
+}
+```
+
+**Configuration Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `workspace` | string | `~/.picoclaw/workspace` | Agent workspace directory |
+| `model` | string | - | Primary model name (must exist in `model_list`) |
+| `max_tokens` | int | 8192 | Maximum tokens per request |
+| `temperature` | float | 0.7 | Sampling temperature (0.0-1.0) |
+| `max_tool_iterations` | int | 20 | Max LLM→tool→LLM loops |
+| `restrict_to_workspace` | bool | true | Sandbox file/shell tools to workspace |
+| `allow_read_outside_workspace` | bool | false | Allow reading outside workspace |
+| `model_fallbacks` | []string | - | Fallback models (deprecated, use `model_list`) |
+
+### Multi-Agent Setup
+
+Define multiple agents with different capabilities:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model": "gpt4"
+    },
+    "agents": [
+      {
+        "id": "main",
+        "name": "Main Assistant",
+        "default": true,
+        "model": {
+          "primary": "gpt4",
+          "fallbacks": ["claude-sonnet-4.6", "glm-4.7"]
+        }
+      },
+      {
+        "id": "researcher",
+        "name": "Research Assistant",
+        "model": {
+          "primary": "claude-sonnet-4.6"
+        },
+        "skills": ["research", "web-search"]
+      },
+      {
+        "id": "coder",
+        "name": "Code Assistant",
+        "workspace": "~/.picoclaw/workspace-coder",
+        "model": {
+          "primary": "gpt4"
+        },
+        "skills": ["coding", "git"]
+      }
+    ]
+  }
+}
+```
+
+**Agent-Specific Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique agent identifier |
+| `name` | string | Display name |
+| `default` | bool | Mark as default agent |
+| `workspace` | string | Override default workspace |
+| `model` | object | Model config with primary/fallbacks |
+| `skills` | []string | Limit to specific skills (nil = all) |
+| `subagents` | object | Subagent spawn permissions |
+
+## Agent Workspace
+
+Each agent has an isolated workspace directory:
+
+```
+~/.picoclaw/workspace/          # Default agent
+├── sessions/                   # Conversation sessions
+│   ├── main.json              # Default session
+│   ├── telegram-123456.json   # Per-channel sessions
+│   └── agent:worker.json      # Cross-agent sessions
+├── memory/
+│   └── MEMORY.md              # Long-term memory
+├── state/
+│   └── state.json             # Persistent state (last channel, etc.)
+├── cron/
+│   └── jobs.json              # Scheduled tasks
+├── skills/                    # Installed skills
+│   └── research/
+├── AGENTS.md                  # Agent behavior guide
+├── SOUL.md                    # Agent personality
+├── IDENTITY.md                # Agent identity
+├── USER.md                    # User preferences
+├── TOOLS.md                   # Tool usage guidelines
+└── HEARTBEAT.md               # Periodic tasks
+```
+
+### Workspace Files
+
+#### AGENTS.md
+Behavior guidelines and instructions for the agent.
+
+#### SOUL.md
+Agent's core personality, values, and communication style.
+
+#### IDENTITY.md
+Agent's role, name, and background.
+
+#### USER.md
+User preferences, context, and historical information.
+
+#### TOOLS.md
+Custom tool usage guidelines and examples.
+
+#### HEARTBEAT.md
+Periodic tasks executed every 30 minutes (configurable):
+
+```markdown
+# Periodic Tasks
+
+## Quick Tasks (respond directly)
+- Report current time
+
+## Long Tasks (use spawn for async)
+- Search the web for AI news and summarize
+- Check email and report important messages
+```
+
+#### MEMORY.md
+Long-term memory for facts, decisions, and important context.
+
+## Agent Sessions
+
+Conversations are tracked in session files:
+
+### Session Manager
+
+Manages conversation history and summarization:
+
+```go
+type SessionManager struct {
+    sessionsDir string
+}
+
+// Core methods
+func (sm *SessionManager) GetHistory(sessionKey string) []providers.Message
+func (sm *SessionManager) AddMessage(sessionKey, role, content string)
+func (sm *SessionManager) SetSummary(sessionKey, summary string)
+func (sm *SessionManager) Save(sessionKey string)
+```
+
+### Session Key Routing
+
+Session keys are derived from:
+
+1. **Channel + Peer**: `telegram-123456` (private chat)
+2. **Channel + Guild/Team**: `discord-guild-789` (server)
+3. **Agent ID**: `agent:worker` (agent-scoped)
+4. **Custom**: Specified in API calls
+
+### Context Compression
+
+When conversation history exceeds 75% of `max_tokens`, automatic summarization triggers:
+
+1. Keep last 4 messages for continuity
+2. Summarize older messages via LLM
+3. Replace history with summary + recent messages
+4. Save compressed session
+
+**Emergency Compression:**
+
+If LLM returns "context_length_exceeded" error:
+1. Drop oldest 50% of messages
+2. Append compression note to system prompt
+3. Retry request
+
+## Agent Context
+
+The full context sent to the LLM consists of:
+
+### 1. System Prompt
+
+Built by `ContextBuilder` from workspace files:
+
+```
+AGENTS.md content
+
+SOUL.md content
+
+IDENTIY.md content
+
+USER.md content
+
+Loaded skills:
+- skill-name: description
+
+Available tools:
+- tool_name: description
+```
+
+### 2. Summary (if exists)
+
+Condensed conversation history from previous summarization.
+
+### 3. History
+
+Recent messages:
+```json
+[
+  {"role": "user", "content": "What is 2+2?"},
+  {"role": "assistant", "content": "4"},
+  {"role": "user", "content": "What is 5+5?"}
+]
+```
+
+### 4. Current User Message
+
+The active request being processed.
+
+## Agent Loop
+
+The agent processing loop (`pkg/agent/loop.go`) handles:
+
+1. **Message Routing**: Route inbound messages to correct agent
+2. **Context Building**: Assemble system + history + user message
+3. **LLM Iteration**: Call LLM → Execute Tools → Repeat
+4. **Session Management**: Save history, trigger summarization
+5. **Response Delivery**: Send result via message bus
+
+### LLM Iteration Loop
+
+```go
+for iteration < MaxIterations {
+    // 1. Call LLM with current messages + tools
+    response, err := provider.Chat(ctx, messages, tools, model, options)
+    
+    // 2. If no tool calls, return final response
+    if len(response.ToolCalls) == 0 {
+        return response.Content
+    }
+    
+    // 3. Execute all tool calls
+    for _, toolCall := range response.ToolCalls {
+        result := tools.Execute(ctx, toolCall.Name, toolCall.Arguments)
+        messages = append(messages, toolResultMessage)
+    }
+    
+    // 4. Continue to next iteration
+    iteration++
+}
+```
+
+**Iteration Limit:**
+
+Prevents infinite loops. If `max_tool_iterations` is reached:
+```
+"I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
+```
+
+## Subagents
+
+Agents can spawn subagents for background tasks:
+
+### Spawn Tool
+
+```json
+{
+  "task": "Search for AI news and summarize",
+  "label": "AI News Research",
+  "agent_id": "researcher"
+}
+```
+
+**Subagent Features:**
+- Independent context (no shared history)
+- Access to all tools (message, web_search, etc.)
+- Communicates results via `message` tool
+- Non-blocking (main agent continues)
+
+### Subagent Permissions
+
+Control which agents can spawn which subagents:
+
+```json
+{
+  "agents": {
+    "agents": [
+      {
+        "id": "main",
+        "subagents": {
+          "allowlist": ["researcher", "coder"]
+        }
+      },
+      {
+        "id": "researcher",
+        "subagents": {
+          "allowlist": []  // Cannot spawn subagents
+        }
+      }
+    ]
+  }
+}
+```
+
+## Agent Routing
+
+Messages are routed to agents based on:
+
+1. **Channel**: Different channels can use different agents
+2. **Guild/Team ID**: Discord servers, Telegram groups
+3. **Peer**: Direct messages vs. group chats
+4. **Parent Peer**: Reply threads
+5. **Account ID**: Multi-account support
+
+Example routing config:
+
+```json
+{
+  "agents": {
+    "routing": {
+      "rules": [
+        {
+          "channel": "discord",
+          "guild_id": "123456789",
+          "agent_id": "coder"
+        },
+        {
+          "channel": "telegram",
+          "peer": {"kind": "group", "id": "987654321"},
+          "agent_id": "researcher"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Best Practices
+
+### 1. Agent Specialization
+
+Create agents for specific tasks:
+- **Main**: General assistance, scheduling, reminders
+- **Researcher**: Web search, fact-checking, analysis
+- **Coder**: Code generation, debugging, git operations
+- **Writer**: Content creation, editing, summarization
+
+### 2. Workspace Organization
+
+Keep agent workspaces isolated:
+```bash
+~/.picoclaw/workspace/          # Main agent
+~/.picoclaw/workspace-researcher/  # Researcher agent
+~/.picoclaw/workspace-coder/    # Coder agent
+```
+
+### 3. Model Selection
+
+Choose models based on task:
+- **Fast models** (Groq, Cerebras): Quick responses, simple tasks
+- **Smart models** (GPT-4, Claude): Complex reasoning, coding
+- **Cheap models** (Gemini, DeepSeek): High-volume tasks
+
+### 4. Fallback Configuration
+
+Always configure fallbacks for reliability:
+```json
+{
+  "model": {
+    "primary": "gpt4",
+    "fallbacks": ["claude-sonnet-4.6", "glm-4.7", "gemini-2.0"]
+  }
+}
+```
+
+### 5. Iteration Limits
+
+Balance capability vs. cost:
+- **Simple tasks**: 5-10 iterations
+- **Complex tasks**: 20-30 iterations
+- **Research tasks**: 30-50 iterations
+
+### 6. Context Management
+
+Keep context files concise:
+- **AGENTS.md**: &lt;500 words
+- **SOUL.md**: &lt;300 words
+- **IDENTITY.md**: &lt;200 words
+- **USER.md**: &lt;500 words

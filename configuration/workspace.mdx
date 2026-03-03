@@ -1,0 +1,379 @@
+---
+title: Workspace Configuration
+description: Understanding PicoClaw's workspace directory structure
+---
+
+## Overview
+
+PicoClaw stores all agent data in a workspace directory. By default, this is `~/.picoclaw/workspace`, but you can customize it.
+
+## Workspace Location
+
+### Configuration
+
+Set workspace path in `config.json`:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace"
+    }
+  }
+}
+```
+
+### Environment Variable
+
+Override workspace location:
+
+```bash
+PICOCLAW_AGENTS_DEFAULTS_WORKSPACE=/custom/workspace picoclaw agent
+```
+
+### Using PICOCLAW_HOME
+
+Set the root directory for all PicoClaw data:
+
+```bash
+PICOCLAW_HOME=/opt/picoclaw picoclaw agent
+```
+
+This creates:
+- `/opt/picoclaw/config.json` (if you also set `PICOCLAW_CONFIG`)
+- `/opt/picoclaw/workspace/` (default workspace)
+
+## Directory Structure
+
+```
+~/.picoclaw/workspace/
+├── sessions/          # Conversation sessions and history
+├── memory/           # Long-term memory storage
+├── state/            # Persistent state data
+├── cron/             # Scheduled jobs database
+├── skills/           # Custom user skills
+├── AGENTS.md         # Agent behavior guidelines
+├── HEARTBEAT.md      # Periodic task instructions
+├── IDENTITY.md       # Agent identity and personality
+├── SOUL.md           # Agent soul and core values
+├── TOOLS.md          # Tool descriptions and usage
+└── USER.md           # User preferences and context
+```
+
+## Directory Descriptions
+
+### sessions/
+
+**Purpose:** Stores conversation history for each session.
+
+**Structure:**
+```
+sessions/
+├── telegram_123456789.json
+├── discord_987654321.json
+└── cli_session_20260303.json
+```
+
+Each file contains:
+- Message history
+- Tool usage logs
+- Session metadata
+
+### memory/
+
+**Purpose:** Long-term memory storage for the agent.
+
+**File:** `memory/MEMORY.md`
+
+The agent uses this to remember:
+- Important user preferences
+- Past interactions and learnings
+- Context across sessions
+
+**Example MEMORY.md:**
+```markdown
+# Agent Memory
+
+## User Preferences
+- Prefers Python 3.11+
+- Uses VS Code as editor
+- Works on machine learning projects
+
+## Past Projects
+- Built a sentiment analysis model (Feb 2026)
+- Deployed a chatbot to Heroku (Mar 2026)
+```
+
+### state/
+
+**Purpose:** Persistent state data.
+
+**Files:**
+- `state/last_channel.txt` - Last used communication channel
+- `state/*.json` - Other state data
+
+### cron/
+
+**Purpose:** Scheduled jobs database.
+
+**Structure:**
+```
+cron/
+├── job_12345.json
+├── job_67890.json
+└── cron.db
+```
+
+Each job file contains:
+- Schedule (cron expression or interval)
+- Task description
+- Execution history
+
+### skills/
+
+**Purpose:** User-defined custom skills.
+
+**Structure:**
+```
+skills/
+├── my-skill/
+│   ├── SKILL.md
+│   └── script.py
+└── another-skill/
+    └── SKILL.md
+```
+
+Skills extend agent capabilities with custom tools and workflows.
+
+## Configuration Files
+
+### AGENTS.md
+
+**Purpose:** Define agent behavior guidelines.
+
+**Example:**
+```markdown
+# Agent Guidelines
+
+## Behavior
+- Always explain your reasoning
+- Ask for clarification when uncertain
+- Provide code examples when helpful
+
+## Code Style
+- Use type hints in Python
+- Follow PEP 8 style guide
+- Include docstrings for functions
+```
+
+### HEARTBEAT.md
+
+**Purpose:** Define periodic tasks the agent should perform.
+
+**Example:**
+```markdown
+# Periodic Tasks
+
+## Quick Tasks (respond directly)
+- Report current time every hour
+
+## Long Tasks (use spawn for async)
+- Check my GitHub for new issues every 30 minutes
+- Search for AI news every 2 hours and summarize
+```
+
+See [Heartbeat Configuration](/features/heartbeat) for details.
+
+### IDENTITY.md
+
+**Purpose:** Define agent identity and personality.
+
+**Example:**
+```markdown
+# Agent Identity
+
+I am a helpful coding assistant specializing in Python and machine learning.
+
+I communicate in a:
+- Clear and concise manner
+- Professional but friendly tone
+- Patient and encouraging way
+```
+
+### SOUL.md
+
+**Purpose:** Define core values and principles.
+
+**Example:**
+```markdown
+# Agent Soul
+
+## Core Principles
+1. Privacy - Never share user data
+2. Accuracy - Verify facts before stating them
+3. Helpfulness - Always try to solve the user's problem
+```
+
+### TOOLS.md
+
+**Purpose:** Document available tools and their usage.
+
+**Example:**
+```markdown
+# Available Tools
+
+## web_search
+Search the web for information.
+
+Usage: When you need current information not in your training data.
+
+## exec
+Execute shell commands.
+
+Usage: For file operations, git commands, package management.
+```
+
+### USER.md
+
+**Purpose:** Store user preferences and context.
+
+**Example:**
+```markdown
+# User Profile
+
+## Name
+John Doe
+
+## Preferences
+- Programming language: Python
+- Editor: VS Code
+- Timezone: PST
+
+## Projects
+- sentiment-analysis-model
+- personal-website
+```
+
+## Workspace Security
+
+### Restrict to Workspace
+
+By default, agents can only access files within the workspace:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "restrict_to_workspace": true
+    }
+  }
+}
+```
+
+This prevents the agent from:
+- Reading `/etc/passwd`
+- Writing to `/usr/bin`
+- Executing commands outside workspace
+
+### Allow Specific Paths
+
+Grant access to specific paths outside workspace:
+
+```json
+{
+  "tools": {
+    "allow_read_paths": [
+      "/home/user/documents"
+    ],
+    "allow_write_paths": [
+      "/home/user/output"
+    ]
+  }
+}
+```
+
+See [Tools Configuration](/configuration/tools) for details.
+
+## Multiple Workspaces
+
+You can use different workspaces for different purposes:
+
+```bash
+# Personal workspace
+PICOCLAW_AGENTS_DEFAULTS_WORKSPACE=~/.picoclaw/personal picoclaw agent
+
+# Work workspace
+PICOCLAW_AGENTS_DEFAULTS_WORKSPACE=~/.picoclaw/work picoclaw agent
+```
+
+Each workspace maintains separate:
+- Conversation history
+- Memory
+- Cron jobs
+- Skills
+
+## Backup and Migration
+
+### Backup Workspace
+
+```bash
+tar -czf picoclaw-workspace-backup.tar.gz ~/.picoclaw/workspace
+```
+
+### Restore Workspace
+
+```bash
+tar -xzf picoclaw-workspace-backup.tar.gz -C ~/
+```
+
+### Migrate to New Location
+
+```bash
+# Copy workspace
+cp -r ~/.picoclaw/workspace /new/location/workspace
+
+# Update config.json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/new/location/workspace"
+    }
+  }
+}
+```
+
+## Cleanup and Maintenance
+
+### Clear Session History
+
+```bash
+rm -rf ~/.picoclaw/workspace/sessions/*
+```
+
+### Clear Memory
+
+```bash
+rm ~/.picoclaw/workspace/memory/MEMORY.md
+```
+
+### Clear Cron Jobs
+
+```bash
+picoclaw cron list
+picoclaw cron delete <job-id>
+```
+
+## Best Practices
+
+1. **Regular backups** - Backup workspace weekly
+2. **Separate workspaces** - Use different workspaces for different contexts
+3. **Keep workspace secure** - Use `restrict_to_workspace: true`
+4. **Document preferences** - Keep USER.md and AGENTS.md updated
+5. **Clean old sessions** - Remove old conversation history periodically
+
+## Next Steps
+
+- [Agent Configuration](/configuration/agents)
+- [Tools Configuration](/configuration/tools)
+- [Heartbeat Tasks](/features/heartbeat)

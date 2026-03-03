@@ -1,0 +1,480 @@
+---
+title: LINE Channel
+description: Connect PicoClaw to LINE Messaging API
+---
+
+LINE is a popular messaging platform in Japan, Taiwan, Thailand, and Southeast Asia. PicoClaw integrates with LINE using the Messaging API via webhooks.
+
+## Why LINE?
+
+- **Popular in Asia**: Dominant in Japan, Taiwan, Thailand, Indonesia
+- **Rich Features**: Supports text, stickers, images, and interactive messages
+- **Official API**: Uses LINE's official Messaging API
+- **Group Support**: Works in 1-on-1 chats and groups (responds to @mentions)
+
+## Prerequisites
+
+- LINE account
+- Access to [LINE Developers Console](https://developers.line.biz/)
+- PicoClaw installed with LLM provider configured
+- Public HTTPS endpoint (webhook requirement)
+- ~15 minutes for setup
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Create a LINE Provider">
+    1. Go to [LINE Developers Console](https://developers.line.biz/)
+    2. Log in with your LINE account
+    3. Click **Create a new provider**
+    4. Enter a provider name (e.g., your company/project name)
+    5. Click **Create**
+
+    <Note>
+    A provider is a container for your LINE channels/bots. One provider can have multiple channels.
+    </Note>
+  </Step>
+
+  <Step title="Create a Messaging API Channel">
+    1. Select your provider
+    2. Click **Create a Messaging API channel**
+    3. Fill in:
+       - **Channel type**: Messaging API
+       - **Provider**: Your provider (pre-selected)
+       - **Channel name**: Your bot name
+       - **Channel description**: Describe your bot
+       - **Category**: Choose appropriate category
+       - **Subcategory**: Choose subcategory
+    4. Agree to terms of service
+    5. Click **Create**
+  </Step>
+
+  <Step title="Get Channel Credentials">
+    In your channel's settings:
+
+    1. Go to **Basic settings** tab
+    2. Copy **Channel Secret**
+    3. Go to **Messaging API** tab
+    4. Scroll to **Channel access token**
+    5. Click **Issue** (if not yet issued)
+    6. Copy **Channel access token**
+
+    <Warning>
+    Keep these credentials secure! They grant full access to your LINE bot. Never share publicly or commit to git.
+    </Warning>
+  </Step>
+
+  <Step title="Set Up Webhook URL">
+    LINE requires HTTPS webhooks. You need a public endpoint:
+
+    **Option 1: Use ngrok (testing)**
+    ```bash
+    # Gateway default port is 18790
+    ngrok http 18790
+    ```
+
+    Copy the HTTPS URL (e.g., `https://abc123.ngrok.io`)
+
+    **Option 2: Reverse proxy (production)**
+
+    Set up nginx/Apache with SSL certificate pointing to `localhost:18790`
+
+    **Option 3: Cloud deployment**
+
+    Deploy PicoClaw on a cloud server with public IP and SSL
+
+    <Tip>
+    For production, use a real domain with valid SSL certificate. Let's Encrypt offers free certificates.
+    </Tip>
+  </Step>
+
+  <Step title="Configure Webhook in LINE">
+    In your channel's **Messaging API** tab:
+
+    1. Find **Webhook settings**
+    2. Click **Edit** next to Webhook URL
+    3. Enter: `https://your-domain/webhook/line`
+    4. Click **Update**
+    5. Enable **Use webhook**
+    6. Click **Verify** to test the connection
+
+    <Note>
+    The webhook path `/webhook/line` is served on PicoClaw's Gateway server (default `127.0.0.1:18790`). All webhook channels share this single server.
+    </Note>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "gateway": {
+        "host": "127.0.0.1",
+        "port": 18790
+      },
+      "channels": {
+        "line": {
+          "enabled": true,
+          "channel_secret": "YOUR_CHANNEL_SECRET",
+          "channel_access_token": "YOUR_CHANNEL_ACCESS_TOKEN",
+          "webhook_path": "/webhook/line",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    Replace:
+    - `channel_secret`: From LINE Developers Console
+    - `channel_access_token`: Channel access token (long string)
+    - `webhook_path`: Default is `/webhook/line` (can customize)
+    - `allow_from`: LINE user IDs to allow (empty = allow all)
+  </Step>
+
+  <Step title="Configure Auto-Reply Settings">
+    In LINE Developers Console → Messaging API tab:
+
+    1. Disable **Auto-reply messages** (so only your bot replies)
+    2. Disable **Greeting messages** (optional)
+    3. Enable **Webhooks**
+
+    <Tip>
+    If auto-reply is enabled, users will get both LINE's auto-reply AND your bot's reply, which can be confusing.
+    </Tip>
+  </Step>
+
+  <Step title="Start the Gateway">
+    Run PicoClaw Gateway:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    You should see:
+    ```
+    [INFO] gateway: Starting HTTP server on 127.0.0.1:18790
+    [INFO] line: LINE channel initialized
+    [INFO] line: Webhook endpoint: /webhook/line
+    ```
+  </Step>
+
+  <Step title="Test Your Bot">
+    1. Scan the QR code in LINE Developers Console (Messaging API tab)
+    2. Add the bot as a friend
+    3. Send a message
+    4. The bot should respond with AI-generated replies
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Basic Configuration
+
+```json
+{
+  "channels": {
+    "line": {
+      "enabled": true,
+      "channel_secret": "YOUR_CHANNEL_SECRET",
+      "channel_access_token": "YOUR_CHANNEL_ACCESS_TOKEN",
+      "webhook_path": "/webhook/line",
+      "allow_from": []
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Enable LINE channel |
+| `channel_secret` | string | Yes | Channel secret from LINE Developers Console |
+| `channel_access_token` | string | Yes | Channel access token |
+| `webhook_path` | string | Yes | Webhook path on Gateway server (default: `/webhook/line`) |
+| `allow_from` | array | No | List of allowed LINE user IDs (empty = allow all) |
+
+### Access Control
+
+**Allow specific users:**
+```json
+{
+  "allow_from": ["U1234567890abcdef1234567890abcdef", "Uabcdef1234567890abcdef1234567890"]
+}
+```
+
+LINE user IDs start with `U` and are 33 characters long.
+
+**Finding user IDs:**
+- Check Gateway logs when a user messages the bot
+- Use LINE Messaging API to query user profiles
+- Inspect webhook payloads
+
+**Allow everyone:**
+```json
+{
+  "allow_from": []
+}
+```
+
+<Warning>
+Public LINE bots can be added by anyone who scans the QR code. This may lead to unexpected API costs and potential abuse.
+</Warning>
+
+## Webhook Requirements
+
+### HTTPS Requirement
+
+LINE **requires HTTPS** for webhook URLs. HTTP is not supported.
+
+**Solutions**:
+1. **ngrok** (testing): `ngrok http 18790`
+2. **Reverse proxy**: nginx/Apache with SSL
+3. **Cloud deployment**: Server with public IP and SSL certificate
+
+### Webhook Path
+
+The webhook path is configured in two places:
+
+1. **PicoClaw config** (`webhook_path`): `/webhook/line`
+2. **LINE Developers Console**: `https://your-domain/webhook/line`
+
+They must match.
+
+### Verification
+
+LINE will send a verification request when you click **Verify** in the console. PicoClaw automatically handles this.
+
+## Features
+
+### Text Messages
+
+Send and receive text messages with conversation context maintained per user.
+
+### Group Chats
+
+In group chats:
+- Bot responds only when **@mentioned** (to avoid spam)
+- Replies quote the original message
+- Maintains separate context per group
+
+<Note>
+To use bots in LINE groups, the bot must be added to the group by an admin.
+</Note>
+
+### Rich Messages
+
+LINE supports:
+- Text messages
+- Images
+- Stickers
+- Template messages (buttons, carousels)
+- Quick replies
+- Flex messages (custom layouts)
+
+<Tip>
+Depending on PicoClaw implementation, advanced message types may be supported. Check the source code or documentation.
+</Tip>
+
+### Message Types
+
+LINE bots can receive:
+- Text messages
+- Image messages
+- Video messages
+- Audio messages
+- Location messages
+- Sticker messages
+
+## Troubleshooting
+
+### "Webhook verification failed"
+
+**Possible causes**:
+1. Gateway not running
+2. Webhook URL incorrect
+3. Firewall blocking incoming requests
+4. HTTPS certificate invalid
+5. Wrong webhook path in config
+
+**Solution**:
+1. Ensure `picoclaw gateway` is running
+2. Check Gateway logs for errors
+3. Verify webhook URL matches: `https://your-domain/webhook/line`
+4. Test HTTPS endpoint with `curl`
+5. Check `webhook_path` in `config.json`
+
+### Bot doesn't respond to messages
+
+**Check these**:
+
+1. **Webhook enabled**: LINE Developers Console → Messaging API → Use webhook = ON
+2. **Auto-reply disabled**: Disable auto-reply in LINE console
+3. **Allow list**: User ID in `allow_from` or empty array
+4. **LLM configured**: Test with `picoclaw agent -m "test"`
+5. **Gateway logs**: Check for incoming webhook requests
+
+### "Invalid signature" errors
+
+**Cause**: Channel secret mismatch
+
+**Solution**:
+1. Verify `channel_secret` in `config.json` matches LINE Developers Console
+2. Ensure no extra spaces when copying
+3. Regenerate channel secret if needed
+4. Restart gateway
+
+### "Unauthorized" errors
+
+**Cause**: Invalid or expired channel access token
+
+**Solution**:
+1. Go to LINE Developers Console → Messaging API
+2. Issue new channel access token
+3. Update `channel_access_token` in `config.json`
+4. Restart gateway
+
+### Webhook timeouts
+
+**LINE webhook timeout**: 30 seconds maximum
+
+If your LLM takes longer than 30 seconds:
+1. Use faster LLM providers (Groq, Cerebras)
+2. Implement async response pattern
+3. Send "thinking" acknowledgment immediately
+
+### Gateway not accessible from internet
+
+**Check**:
+1. `gateway.host` set to `0.0.0.0` (not `127.0.0.1`) if accessing from external network
+2. Firewall allows port 18790
+3. Router port forwarding configured (if behind NAT)
+4. Cloud security groups allow inbound traffic
+
+## Rate Limits
+
+LINE Messaging API has rate limits:
+
+- **Reply messages**: 50 requests/second
+- **Push messages**: Depends on plan (free tier is limited)
+- **Multicast**: 50 requests/second
+- **Broadcast**: Depends on plan
+
+<Note>
+Free LINE bot accounts have limited push message quota. Reply messages (responding to user messages) are unlimited.
+</Note>
+
+## Privacy & Security
+
+<Warning>
+**Security Best Practices**:
+
+- Never share channel secret or access token
+- Use HTTPS with valid certificates
+- Never commit credentials to version control
+- Validate webhook signatures (PicoClaw does this automatically)
+- Use `allow_from` for personal bots
+- Monitor bot usage in LINE console
+- Regenerate tokens if compromised
+</Warning>
+
+### Data Privacy
+
+LINE bots can access:
+- Messages sent to the bot
+- User display names
+- User profile pictures
+- Group information (if in groups)
+
+<Note>
+LINE user IDs are unique per bot. The same user has different IDs across different bots (privacy protection).
+</Note>
+
+Be aware of:
+- LINE privacy policies
+- Local data storage in PicoClaw
+- LLM provider data logging
+- Regional data protection laws
+
+## Complete Example
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key"
+    }
+  ],
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 18790
+  },
+  "channels": {
+    "line": {
+      "enabled": true,
+      "channel_secret": "1234567890abcdef1234567890abcdef",
+      "channel_access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "webhook_path": "/webhook/line",
+      "allow_from": []
+    }
+  }
+}
+```
+
+## Production Deployment
+
+### Using Reverse Proxy
+
+Example nginx configuration:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    location /webhook/line {
+        proxy_pass http://127.0.0.1:18790;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Docker Deployment
+
+When using Docker:
+
+```bash
+# Expose Gateway port
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+Set `gateway.host` to `0.0.0.0` in config to accept external connections.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="WeCom Channel" icon="wechat" href="/channels/wecom">
+    Another Asian messaging platform
+  </Card>
+  <Card title="Telegram Channel" icon="telegram" href="/channels/telegram">
+    Easier setup without webhooks
+  </Card>
+  <Card title="Channel Overview" icon="comments" href="/channels/overview">
+    Compare all available channels
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Advanced configuration options
+  </Card>
+</CardGroup>

@@ -1,0 +1,621 @@
+---
+title: Frequently Asked Questions
+description: Common questions about PicoClaw setup, usage, providers, and more
+icon: circle-question
+---
+
+## General Questions
+
+<AccordionGroup>
+  <Accordion title="What is PicoClaw?">
+    PicoClaw is an ultra-lightweight personal AI assistant inspired by nanobot, refactored from the ground up in Go. It runs on $10 hardware with &lt;10MB RAM, making it 99% less memory-hungry than OpenClaw and 98% cheaper than a Mac mini.
+    
+    Key features:
+    - Ultra-lightweight (&lt;10MB memory footprint)
+    - Lightning fast (400X faster startup, boots in 1 second)
+    - True portability (single binary across RISC-V, ARM, and x86)
+    - AI-bootstrapped (95% agent-generated core)
+  </Accordion>
+  
+  <Accordion title="How is PicoClaw different from OpenClaw and NanoBot?">
+    | Feature | OpenClaw | NanoBot | PicoClaw |
+    |---------|----------|---------|----------|
+    | **Language** | TypeScript | Python | **Go** |
+    | **RAM** | &gt;1GB | &gt;100MB | **< 10MB** |
+    | **Startup** (0.8GHz) | &gt;500s | &gt;30s | **&lt;1s** |
+    | **Cost** | Mac Mini $599 | Linux SBC ~$50 | **Any Linux Board ~$10** |
+    
+    PicoClaw is designed for extreme resource efficiency, making it ideal for embedded devices and edge computing.
+  </Accordion>
+  
+  <Accordion title="What hardware can run PicoClaw?">
+    PicoClaw can run on:
+    - **Embedded Boards**: LicheeRV-Nano ($9.9), NanoKVM ($30-100), MaixCAM ($50-100)
+    - **Single Board Computers**: Raspberry Pi (including Pi Zero 2 W)
+    - **Old Android Phones**: Via Termux
+    - **Servers & Desktops**: Any Linux, macOS, or Windows machine
+    - **Docker Containers**: Portable deployment
+    
+    Minimum requirements:
+    - 64MB RAM (target: &lt;20MB)
+    - Any architecture: x86_64, ARM64, ARM32, RISC-V
+  </Accordion>
+  
+  <Accordion title="Is PicoClaw open source?">
+    Yes! PicoClaw is open source under the MIT license. You can:
+    - View the source code on [GitHub](https://github.com/sipeed/picoclaw)
+    - Contribute features, bug fixes, or documentation
+    - Fork and customize for your needs
+    - Use it commercially or personally
+    
+    See our [Contributing Guide](/community/contributing) to get started.
+  </Accordion>
+  
+  <Accordion title="Was PicoClaw really built by AI?">
+    Yes! PicoClaw was substantially developed with AI assistance through a self-bootstrapping process. The AI agent itself drove the architectural migration from Python to Go and code optimization.
+    
+    However, this doesn't mean the code is unreviewed or low-quality:
+    - All AI-generated code is reviewed and validated by humans
+    - Contributors are responsible for understanding and testing code
+    - The same quality standards apply to all contributions
+    
+    We embrace responsible AI-assisted development and have built our contribution process around it.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Setup Questions
+
+<AccordionGroup>
+  <Accordion title="How do I install PicoClaw?">
+    <Tabs>
+      <Tab title="Precompiled Binary (Easiest)">
+        Download from the [releases page](https://github.com/sipeed/picoclaw/releases):
+        
+        ```bash
+        # Linux/macOS
+        chmod +x picoclaw-*
+        ./picoclaw-* onboard
+        ```
+      </Tab>
+      
+      <Tab title="From Source (Latest Features)">
+        ```bash
+        git clone https://github.com/sipeed/picoclaw.git
+        cd picoclaw
+        make deps
+        make build
+        ./build/picoclaw onboard
+        ```
+      </Tab>
+      
+      <Tab title="Docker">
+        ```bash
+        git clone https://github.com/sipeed/picoclaw.git
+        cd picoclaw
+        docker compose -f docker/docker-compose.yml --profile gateway up
+        # Edit docker/data/config.json
+        docker compose -f docker/docker-compose.yml --profile gateway up -d
+        ```
+      </Tab>
+      
+      <Tab title="Android/Termux">
+        ```bash
+        # Install Termux from F-Droid
+        pkg install proot
+        wget https://github.com/sipeed/picoclaw/releases/download/v0.1.1/picoclaw-linux-arm64
+        chmod +x picoclaw-linux-arm64
+        termux-chroot ./picoclaw-linux-arm64 onboard
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="What API keys do I need?">
+    **Required**:
+    - **LLM Provider**: Choose one:
+      - [OpenRouter](https://openrouter.ai/keys) - Access to all models (200K tokens/month free)
+      - [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) - Best for Chinese users (200K tokens/month free)
+      - [OpenAI](https://platform.openai.com) - GPT models
+      - [Anthropic](https://console.anthropic.com) - Claude models
+      - [Gemini](https://aistudio.google.com/api-keys) - Google models
+    
+    **Optional**:
+    - **Web Search**: Choose one:
+      - [Brave Search](https://brave.com/search/api) - 2000 queries/month free
+      - [Tavily](https://tavily.com) - 1000 queries/month free, AI-optimized
+      - DuckDuckGo - Built-in fallback, no key needed
+    - **Voice Transcription**: [Groq](https://console.groq.com) - Free Whisper transcription
+  </Accordion>
+  
+  <Accordion title="How do I configure PicoClaw?">
+    After running `picoclaw onboard`, edit `~/.picoclaw/config.json`:
+    
+    **Basic Setup**:
+    ```json
+    {
+      "model_list": [
+        {
+          "model_name": "gpt4",
+          "model": "openai/gpt-5.2",
+          "api_key": "your-api-key"
+        }
+      ],
+      "agents": {
+        "defaults": {
+          "model": "gpt4"
+        }
+      }
+    }
+    ```
+    
+    See `config.example.json` for a complete template.
+  </Accordion>
+  
+  <Accordion title="Can I use PicoClaw without web search?">
+    Yes! Web search is optional. If you don't configure a search API key:
+    - DuckDuckGo is used as an automatic fallback
+    - The agent will provide helpful links for manual searching
+    - All other features work normally
+    
+    For the best experience, we recommend configuring [Brave Search](https://brave.com/search/api) (2000 free queries/month).
+  </Accordion>
+  
+  <Accordion title="How do I update PicoClaw?">
+    <Tabs>
+      <Tab title="Binary">
+        Download the latest release and replace your existing binary:
+        ```bash
+        wget https://github.com/sipeed/picoclaw/releases/latest/download/picoclaw-linux-amd64
+        chmod +x picoclaw-linux-amd64
+        ```
+      </Tab>
+      
+      <Tab title="From Source">
+        ```bash
+        cd picoclaw
+        git pull
+        make deps
+        make build
+        ```
+      </Tab>
+      
+      <Tab title="Docker">
+        ```bash
+        docker compose -f docker/docker-compose.yml pull
+        docker compose -f docker/docker-compose.yml --profile gateway up -d
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Usage Questions
+
+<AccordionGroup>
+  <Accordion title="How do I chat with PicoClaw?">
+    **Command Line**:
+    ```bash
+    # One-shot message
+    picoclaw agent -m "What is 2+2?"
+    
+    # Interactive mode
+    picoclaw agent
+    ```
+    
+    **Chat Apps** (after configuring channels):
+    ```bash
+    picoclaw gateway
+    # Then message your bot on Telegram, Discord, WhatsApp, etc.
+    ```
+  </Accordion>
+  
+  <Accordion title="What can PicoClaw do?">
+    PicoClaw is a full-featured AI assistant that can:
+    
+    **File Operations**:
+    - Read, write, edit files
+    - List directories
+    - Search file contents
+    
+    **Web & Research**:
+    - Search the web
+    - Fetch and analyze web pages
+    - Stay updated on news and trends
+    
+    **Development**:
+    - Write and debug code
+    - Execute shell commands
+    - Manage git repositories
+    
+    **Planning & Memory**:
+    - Create and manage schedules
+    - Set reminders and recurring tasks
+    - Remember important information across sessions
+    
+    **Communication**:
+    - Respond on multiple chat platforms
+    - Send messages to users
+    - Handle group chats
+  </Accordion>
+  
+  <Accordion title="How do I connect PicoClaw to Telegram/Discord/WhatsApp?">
+    See our detailed channel guides:
+    - [Telegram Setup](/channels/telegram) - Easiest, just a bot token
+    - [Discord Setup](/channels/discord) - Bot token + intents
+    - [WhatsApp Setup](/channels/whatsapp) - QR scan or bridge
+    - [More Channels](/channels/overview) - QQ, LINE, WeCom, DingTalk, etc.
+    
+    **Quick Telegram Setup**:
+    1. Message [@BotFather](https://t.me/BotFather) on Telegram
+    2. Send `/newbot` and follow prompts
+    3. Copy the token to `config.json`:
+    ```json
+    {
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "token": "YOUR_BOT_TOKEN",
+          "allow_from": ["YOUR_USER_ID"]
+        }
+      }
+    }
+    ```
+    4. Run `picoclaw gateway`
+  </Accordion>
+  
+  <Accordion title="Can PicoClaw run scheduled tasks?">
+    Yes! PicoClaw supports two types of scheduling:
+    
+    **1. Heartbeat Tasks** (periodic):
+    Create `~/.picoclaw/workspace/HEARTBEAT.md`:
+    ```markdown
+    # Periodic Tasks
+    
+    - Check my email for important messages
+    - Review my calendar for upcoming events
+    - Search for AI news and summarize
+    ```
+    
+    The agent checks this file every 30 minutes (configurable).
+    
+    **2. Cron Jobs** (one-time or recurring):
+    ```bash
+    # Via CLI
+    picoclaw cron add "Remind me to call mom" "in 1 hour"
+    picoclaw cron list
+    
+    # Via chat
+    "Remind me in 10 minutes to check the oven"
+    "Remind me every day at 9am to review my schedule"
+    ```
+  </Accordion>
+  
+  <Accordion title="How does PicoClaw remember things?">
+    PicoClaw has multiple memory mechanisms:
+    
+    **Session Memory**:
+    - Stored in `~/.picoclaw/workspace/sessions/`
+    - Preserves conversation context
+    - Separate sessions per channel/user
+    
+    **Long-term Memory**:
+    - `MEMORY.md` - Important facts and preferences
+    - `USER.md` - User profile and preferences
+    - `IDENTITY.md` - Agent identity and personality
+    
+    **State Persistence**:
+    - `state/` - Last used channel, active sessions
+    - `cron/` - Scheduled tasks database
+    
+    The agent automatically updates these files as it learns about you.
+  </Accordion>
+  
+  <Accordion title="Is my data secure?">
+    PicoClaw has multiple security features:
+    
+    **Sandbox by Default**:
+    - `restrict_to_workspace: true` limits file access to workspace only
+    - Dangerous commands (rm -rf, format, etc.) are blocked
+    - No access to system files outside workspace
+    
+    **Channel Security**:
+    - `allow_from` restricts who can use your bot
+    - Per-channel session isolation
+    - No data leakage between users
+    
+    **API Key Protection**:
+    - Stored in local config file
+    - Never logged or transmitted except to provider
+    - Credentials redacted from logs
+    
+    See our [Roadmap](/community/roadmap) for upcoming security enhancements.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Provider Questions
+
+<AccordionGroup>
+  <Accordion title="Which LLM provider should I use?">
+    **Best for Most Users**: [OpenRouter](https://openrouter.ai/keys)
+    - Access to all major models (GPT, Claude, Gemini, Llama, etc.)
+    - 200K tokens/month free tier
+    - Easy switching between models
+    
+    **Best for Chinese Users**: [Zhipu (智谱)](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys)
+    - Optimized for Chinese language
+    - 200K tokens/month free tier
+    - Fast response times in China
+    
+    **Best for Privacy**: Local models via [Ollama](https://ollama.com)
+    - Runs entirely on your hardware
+    - No API keys needed
+    - No data leaves your machine
+    
+    **Best for Speed**: [Groq](https://console.groq.com) or [Cerebras](https://cerebras.ai)
+    - Ultra-fast inference
+    - Free tier available
+    - Great for simple tasks
+  </Accordion>
+  
+  <Accordion title="Can I use local models?">
+    Yes! PicoClaw supports local inference via:
+    
+    **Ollama** (Recommended):
+    ```bash
+    # Install Ollama
+    curl -fsSL https://ollama.com/install.sh | sh
+    
+    # Pull a model
+    ollama pull llama3
+    
+    # Configure PicoClaw
+    {
+      "model_list": [
+        {
+          "model_name": "local-llama",
+          "model": "ollama/llama3"
+        }
+      ]
+    }
+    ```
+    
+    **Other Options**:
+    - vLLM
+    - LM Studio
+    - LiteLLM Proxy
+    
+    See [Provider Configuration](/configuration/providers) for details.
+  </Accordion>
+  
+  <Accordion title="How do I switch between models?">
+    Configure multiple models in `model_list`:
+    
+    ```json
+    {
+      "model_list": [
+        {
+          "model_name": "gpt4",
+          "model": "openai/gpt-5.2",
+          "api_key": "sk-..."
+        },
+        {
+          "model_name": "claude",
+          "model": "anthropic/claude-sonnet-4.6",
+          "api_key": "sk-ant-..."
+        },
+        {
+          "model_name": "local",
+          "model": "ollama/llama3"
+        }
+      ],
+      "agents": {
+        "defaults": {
+          "model": "gpt4"  // Default model
+        }
+      }
+    }
+    ```
+    
+    Change the default model in `agents.defaults.model` to switch.
+  </Accordion>
+  
+  <Accordion title="What if my API calls fail?">
+    **Load Balancing**: Configure multiple endpoints for failover:
+    ```json
+    {
+      "model_list": [
+        {
+          "model_name": "gpt4",
+          "model": "openai/gpt-5.2",
+          "api_base": "https://api1.example.com/v1",
+          "api_key": "key1"
+        },
+        {
+          "model_name": "gpt4",
+          "model": "openai/gpt-5.2",
+          "api_base": "https://api2.example.com/v1",
+          "api_key": "key2"
+        }
+      ]
+    }
+    ```
+    
+    PicoClaw will automatically round-robin between endpoints.
+  </Accordion>
+  
+  <Accordion title="How much does it cost to run PicoClaw?">
+    **Hardware Costs**:
+    - Embedded board: $10-50 (one-time)
+    - Or use existing hardware: $0
+    
+    **API Costs** (monthly):
+    - OpenRouter: 200K tokens free, then ~$0.50-2/million tokens
+    - Zhipu: 200K tokens free, then similar pricing
+    - Local models (Ollama): $0, but uses your compute
+    - Brave Search: 2000 queries free, then $5/1000 queries
+    
+    **Typical Usage**:
+    - Light user (&lt;100 messages/day): Usually stays in free tier
+    - Heavy user (>500 messages/day): ~$5-15/month
+    
+    See our [API Key Comparison](/getting-started/quick-start#api-key-comparison).
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Advanced Questions
+
+<AccordionGroup>
+  <Accordion title="Can I customize PicoClaw's personality?">
+    Yes! Edit these files in your workspace:
+    
+    **`IDENTITY.md`** - Agent identity and name:
+    ```markdown
+    You are PicoClaw, a helpful AI assistant.
+    You are efficient, accurate, and friendly.
+    ```
+    
+    **`SOUL.md`** - Personality and behavior:
+    ```markdown
+    You respond concisely and professionally.
+    You prioritize user needs and ask clarifying questions.
+    ```
+    
+    **`AGENTS.md`** - Agent behavior guide:
+    ```markdown
+    When writing code, always include comments.
+    When searching, summarize findings concisely.
+    ```
+    
+    The agent reads these files on startup and follows the guidelines.
+  </Accordion>
+  
+  <Accordion title="How do I add custom skills?">
+    Create skill files in `~/.picoclaw/workspace/skills/`:
+    
+    **Example: `email_checker.json`**
+    ```json
+    {
+      "name": "check_email",
+      "description": "Check email for important messages",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "Filter criteria (e.g., 'from:boss@company.com')"
+          }
+        }
+      },
+      "handler": "skills/email_checker.sh"
+    }
+    ```
+    
+    PicoClaw will automatically discover and use the skill.
+  </Accordion>
+  
+  <Accordion title="Can I run multiple PicoClaw instances?">
+    Yes! Each instance needs:
+    
+    **Separate Config**:
+    ```bash
+    export PICOCLAW_CONFIG=/path/to/instance1/config.json
+    picoclaw gateway
+    ```
+    
+    **Separate Workspace**:
+    ```json
+    {
+      "agents": {
+        "defaults": {
+          "workspace": "~/.picoclaw/workspace1"
+        }
+      }
+    }
+    ```
+    
+    **Different Gateway Ports** (if using webhooks):
+    ```json
+    {
+      "gateway": {
+        "host": "127.0.0.1",
+        "port": 18790  // Use different port for each instance
+      }
+    }
+    ```
+    
+    See our [Roadmap](/community/roadmap) for upcoming "Swarm Mode" (multi-agent collaboration).
+  </Accordion>
+  
+  <Accordion title="How do I contribute to PicoClaw?">
+    We welcome all contributions! See our [Contributing Guide](/community/contributing).
+    
+    **Quick Start**:
+    1. Fork the repository
+    2. Create a feature branch
+    3. Make your changes
+    4. Run `make check` to verify
+    5. Open a Pull Request
+    
+    **What to Contribute**:
+    - Bug fixes
+    - New features
+    - Documentation improvements
+    - New channel integrations
+    - Provider support
+    - Testing on new hardware
+    
+    **Community Channels**:
+    - [GitHub Issues](https://github.com/sipeed/picoclaw/issues)
+    - [GitHub Discussions](https://github.com/sipeed/picoclaw/discussions)
+    - [Discord](https://discord.gg/V4sAZ9XWpN)
+    - WeChat (after first merged PR)
+  </Accordion>
+  
+  <Accordion title="What's on the roadmap?">
+    See our full [Roadmap](/community/roadmap) for details. Highlights:
+    
+    **Near-term**:
+    - Memory footprint reduction (&lt;20MB target)
+    - Security hardening (sandboxing, SSRF protection)
+    - Protocol-first provider architecture
+    - More channel integrations
+    
+    **Mid-term**:
+    - MCP (Model Context Protocol) support
+    - Browser automation
+    - Mobile device control
+    - Multi-agent collaboration
+    
+    **Long-term**:
+    - Swarm mode (multiple PicoClaw instances)
+    - Model routing (smart task distribution)
+    - AIEOS (AI-native OS interaction)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Still Have Questions?
+
+<CardGroup cols={2}>
+  <Card title="Troubleshooting" icon="wrench" href="/community/troubleshooting">
+    Common issues and solutions
+  </Card>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/sipeed/picoclaw/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="GitHub Discussions" icon="comments" href="https://github.com/sipeed/picoclaw/discussions">
+    Ask questions and share ideas
+  </Card>
+  <Card title="Discord" icon="discord" href="https://discord.gg/V4sAZ9XWpN">
+    Join the community chat
+  </Card>
+</CardGroup>

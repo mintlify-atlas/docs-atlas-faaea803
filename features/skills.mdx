@@ -1,0 +1,525 @@
+---
+title: Skills System
+description: Extend agent capabilities with custom instruction sets
+---
+
+PicoClaw's skills system allows you to extend the agent's capabilities by providing specialized instruction sets. Skills are reusable packages of knowledge that the agent can load on-demand.
+
+## Overview
+
+Skills are markdown documents that provide:
+
+- Specialized instructions for specific tasks
+- Domain-specific knowledge and workflows
+- Reusable procedures and best practices
+- Custom tool combinations and patterns
+
+### How Skills Work
+
+1. Skills are stored as markdown files (`SKILL.md`)
+2. Agent discovers available skills at runtime
+3. When needed, agent loads skill content into context
+4. Skill instructions guide agent behavior
+
+## Skill Locations
+
+PicoClaw loads skills from three locations in priority order:
+
+### 1. Workspace Skills (Highest Priority)
+
+**Location:** `~/.picoclaw/workspace/skills/`
+
+**Purpose:** Project-specific skills
+
+Example:
+```
+~/.picoclaw/workspace/skills/
+├── my-project/
+│   └── SKILL.md
+└── deployment/
+    └── SKILL.md
+```
+
+### 2. Global Skills
+
+**Location:** `~/.picoclaw/skills/`
+
+**Purpose:** User-wide skills available to all projects
+
+Example:
+```
+~/.picoclaw/skills/
+├── git-workflow/
+│   └── SKILL.md
+└── code-review/
+    └── SKILL.md
+```
+
+### 3. Builtin Skills (Lowest Priority)
+
+**Location:** `<picoclaw-repo>/skills/`
+
+**Purpose:** Official skills shipped with PicoClaw
+
+Example:
+```
+skills/
+├── github/
+│   └── SKILL.md
+└── documentation/
+    └── SKILL.md
+```
+
+### Override Builtin Location
+
+For advanced setups, override the builtin skills directory:
+
+```bash
+export PICOCLAW_BUILTIN_SKILLS=/path/to/skills
+picoclaw gateway
+```
+
+## Skill Structure
+
+### Directory Layout
+
+Each skill is a directory containing a `SKILL.md` file:
+
+```
+skill-name/
+├── SKILL.md          # Main skill content (required)
+├── examples/         # Optional examples
+├── templates/        # Optional templates
+└── resources/        # Optional additional resources
+```
+
+### SKILL.md Format
+
+Skills use markdown with optional YAML frontmatter:
+
+```markdown
+---
+name: github
+description: GitHub workflow and best practices
+---
+
+# GitHub Workflow Skill
+
+This skill provides instructions for working with GitHub.
+
+## Creating Pull Requests
+
+1. Create a feature branch
+2. Make your changes
+3. Push to remote
+4. Open PR with clear description
+
+## Best Practices
+
+- Use conventional commits
+- Write clear PR descriptions
+- Request reviews from relevant team members
+```
+
+### Frontmatter Metadata
+
+| Field | Required | Max Length | Description |
+|-------|----------|------------|-------------|
+| `name` | Yes | 64 chars | Skill identifier (alphanumeric with hyphens) |
+| `description` | Yes | 1024 chars | Brief description of skill purpose |
+
+**Name validation:**
+- Must match pattern: `^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$`
+- Examples: `github`, `code-review`, `api-testing`
+
+## Creating Custom Skills
+
+### Basic Skill
+
+1. Create skill directory:
+```bash
+mkdir -p ~/.picoclaw/workspace/skills/my-skill
+```
+
+2. Create `SKILL.md`:
+```bash
+vim ~/.picoclaw/workspace/skills/my-skill/SKILL.md
+```
+
+3. Add content:
+```markdown
+---
+name: my-skill
+description: Custom skill for my specific needs
+---
+
+# My Custom Skill
+
+Detailed instructions for the agent...
+
+## When to Use
+
+Use this skill when...
+
+## Steps
+
+1. First step
+2. Second step
+3. Final step
+```
+
+### Advanced Skill with Resources
+
+```
+my-advanced-skill/
+├── SKILL.md
+├── examples/
+│   ├── example1.md
+│   └── example2.md
+└── templates/
+    └── template.yaml
+```
+
+**SKILL.md:**
+```markdown
+---
+name: my-advanced-skill  
+description: Advanced skill with examples and templates
+---
+
+# My Advanced Skill
+
+## Overview
+
+This skill demonstrates...
+
+## Examples
+
+See `examples/` directory for:
+- example1.md: Basic usage
+- example2.md: Advanced patterns
+
+## Templates
+
+Use `templates/template.yaml` as a starting point.
+```
+
+## Using Skills
+
+### Automatic Discovery
+
+The agent automatically discovers available skills:
+
+```bash
+picoclaw agent -m "What skills are available?"
+```
+
+The agent sees:
+```xml
+<skills>
+  <skill>
+    <name>github</name>
+    <description>GitHub workflow and best practices</description>
+    <location>/home/user/.picoclaw/skills/github/SKILL.md</location>
+    <source>global</source>
+  </skill>
+  <skill>
+    <name>my-skill</name>
+    <description>Custom skill for my specific needs</description>
+    <location>/home/user/.picoclaw/workspace/skills/my-skill/SKILL.md</location>
+    <source>workspace</source>
+  </skill>
+</skills>
+```
+
+### Loading Skills
+
+The agent loads skills automatically when relevant:
+
+```bash
+picoclaw agent -m "Help me create a GitHub PR"
+```
+
+The agent:
+1. Recognizes this relates to the `github` skill
+2. Loads `github/SKILL.md` content
+3. Follows instructions from the skill
+4. Applies best practices defined in skill
+
+### Explicit Skill Loading
+
+You can explicitly request a skill:
+
+```bash
+picoclaw agent -m "Load the code-review skill and review my PR"
+```
+
+## Skill Priority
+
+When multiple skills have the same name, priority order:
+
+1. **Workspace** (highest) - `~/.picoclaw/workspace/skills/`
+2. **Global** - `~/.picoclaw/skills/`  
+3. **Builtin** (lowest) - `<repo>/skills/`
+
+Example scenario:
+- Builtin has `github` skill with general instructions
+- You create workspace `github` skill with project-specific workflow
+- Agent uses **your workspace version** (higher priority)
+
+## Skill Loader API
+
+The skills system is implemented in `pkg/skills/loader.go`:
+
+### SkillsLoader
+
+```go
+type SkillsLoader struct {
+    workspace       string
+    workspaceSkills string // workspace skills (project-level)
+    globalSkills    string // global skills (~/.picoclaw/skills)  
+    builtinSkills   string // builtin skills
+}
+```
+
+### Methods
+
+#### ListSkills()
+List all available skills.
+
+```go
+func (sl *SkillsLoader) ListSkills() []SkillInfo
+```
+
+Returns: Array of `SkillInfo` with name, path, source, and description.
+
+#### LoadSkill(name string)
+Load a specific skill by name.
+
+```go
+func (sl *SkillsLoader) LoadSkill(name string) (string, bool)
+```
+
+Parameters:
+- `name`: Skill name (e.g., "github")
+
+Returns:
+- `string`: Skill content (frontmatter stripped)
+- `bool`: True if skill found
+
+#### LoadSkillsForContext(skillNames []string)  
+Load multiple skills and format for context.
+
+```go
+func (sl *SkillsLoader) LoadSkillsForContext(skillNames []string) string
+```
+
+Returns: Combined skills with separators and headers.
+
+#### BuildSkillsSummary()
+Build XML summary of all available skills.
+
+```go
+func (sl *SkillsLoader) BuildSkillsSummary() string  
+```
+
+Returns: XML format skills list for agent context.
+
+## Best Practices
+
+### Skill Design
+
+✅ **Do:**
+- Keep skills focused on one domain/task
+- Use clear, concise instructions
+- Include examples and templates
+- Document when to use the skill
+- Use markdown formatting for readability
+
+❌ **Don't:**
+- Create overly broad skills
+- Include sensitive information
+- Duplicate information across skills
+- Make skills too long (>2000 lines)
+
+### Naming Conventions
+
+- Use lowercase with hyphens: `my-skill`
+- Be descriptive: `github-pr-workflow` not `gh`
+- Group related skills: `aws-deploy`, `aws-monitor`
+
+### Organization
+
+**Workspace skills** for:
+- Project-specific workflows
+- Team conventions
+- Temporary procedures
+
+**Global skills** for:
+- Personal workflows
+- Frequently used patterns
+- Cross-project procedures
+
+**Builtin skills** for:
+- General best practices
+- Tool-specific instructions
+- Common patterns
+
+## Example Skills
+
+### Git Workflow Skill
+
+```markdown
+---
+name: git-workflow
+description: Standard git workflow for this project
+---
+
+# Git Workflow
+
+## Branch Naming
+
+- Feature: `feature/description`
+- Bug fix: `fix/description`  
+- Hotfix: `hotfix/description`
+
+## Commit Messages
+
+Use conventional commits:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation
+- `refactor:` - Code refactoring
+
+## PR Process
+
+1. Create branch from `main`
+2. Make changes with clear commits
+3. Push and create PR
+4. Request review from team
+5. Merge when approved
+```
+
+### Code Review Skill
+
+```markdown
+---
+name: code-review
+description: Code review checklist and guidelines
+---
+
+# Code Review Checklist
+
+## Functionality
+
+- [ ] Code solves the intended problem
+- [ ] Edge cases handled
+- [ ] Error handling appropriate
+
+## Code Quality  
+
+- [ ] Follows project style guide
+- [ ] No code duplication
+- [ ] Functions are focused and small
+- [ ] Variable names are clear
+
+## Testing
+
+- [ ] Unit tests included
+- [ ] Tests cover edge cases
+- [ ] All tests pass
+
+## Documentation
+
+- [ ] Code comments for complex logic
+- [ ] API documentation updated
+- [ ] README updated if needed
+```
+
+### Deployment Skill
+
+```markdown
+---
+name: deployment
+description: Deployment procedures and checklist
+---
+
+# Deployment Procedure
+
+## Pre-deployment
+
+1. Run full test suite
+2. Update version number
+3. Update CHANGELOG
+4. Create git tag
+
+## Deployment Steps
+
+1. Build release binary:
+   ```bash
+   make build-all
+   ```
+
+2. Test release build:
+   ```bash
+   ./build/picoclaw-linux-amd64 --version
+   ```
+
+3. Create GitHub release
+4. Upload binaries
+5. Announce in Discord
+
+## Post-deployment
+
+1. Verify deployment on target systems
+2. Monitor logs for errors
+3. Update documentation site
+```
+
+## Troubleshooting
+
+### Skill Not Found
+
+1. Check skill exists:
+```bash
+ls -la ~/.picoclaw/workspace/skills/my-skill/SKILL.md
+```
+
+2. Verify name in frontmatter matches directory:
+```bash
+head -5 ~/.picoclaw/workspace/skills/my-skill/SKILL.md
+```
+
+3. Check for validation errors in logs
+
+### Skill Not Loading
+
+1. Verify YAML frontmatter format:
+```markdown
+---
+name: skill-name
+description: Description here
+---
+```
+
+2. Check name validation:
+- Only alphanumeric and hyphens
+- No spaces or special characters
+- Max 64 characters
+
+3. Check description length (max 1024 chars)
+
+### Wrong Skill Version Loading
+
+Priority order:
+1. Workspace (highest)
+2. Global
+3. Builtin (lowest)
+
+To override builtin skill, create same-named skill in workspace or global.
+
+## Related Features
+
+- [Memory System](/features/memory) - Persistent context across sessions
+- [MCP (Model Context Protocol)](/features/mcp) - External tool integration
+- [Heartbeat](/features/heartbeat) - Periodic skill-based tasks

@@ -1,0 +1,401 @@
+---
+title: Architecture
+description: Understanding PicoClaw's ultra-lightweight system design
+---
+
+## Overview
+
+PicoClaw is an ultra-lightweight AI assistant CLI tool written in Go, designed to run on minimal hardware (&lt;10MB RAM) while providing full-featured AI agent capabilities. The architecture prioritizes efficiency, simplicity, and modularity.
+
+## Core Components
+
+### 1. Agent System
+
+The agent system forms the heart of PicoClaw, responsible for managing AI interactions and tool execution.
+
+#### AgentInstance (`pkg/agent/instance.go`)
+
+Each agent is represented by an `AgentInstance` struct:
+
+```go
+type AgentInstance struct {
+    ID             string                    // Unique agent identifier
+    Name           string                    // Human-readable name
+    Model          string                    // Primary LLM model
+    Fallbacks      []string                  // Fallback model list
+    Workspace      string                    // Agent workspace directory
+    MaxIterations  int                       // Max tool use iterations
+    MaxTokens      int                       // Context window size
+    Temperature    float64                   // LLM sampling temperature
+    Provider       providers.LLMProvider     // LLM provider interface
+    Sessions       *session.SessionManager   // Conversation history
+    ContextBuilder *ContextBuilder           // System prompt builder
+    Tools          *tools.ToolRegistry       // Available tools
+    Subagents      *config.SubagentsConfig   // Subagent permissions
+    SkillsFilter   []string                  // Enabled skills
+    Candidates     []providers.FallbackCandidate // Fallback chain
+}
+```
+
+**Key Features:**
+- Independent workspace per agent
+- Configurable model fallback chain
+- Isolated session management
+- Tool registry with sandboxing
+- Skill-based capability filtering
+
+#### AgentLoop (`pkg/agent/loop.go`)
+
+The main processing loop that handles message routing and LLM interactions:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Message Bus                       │
+│              (Inbound/Outbound)                     │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│                 AgentLoop.Run()                     │
+│  • Consumes messages from bus                       │
+│  • Routes to appropriate agent                      │
+│  • Manages LLM iteration loop                       │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│            runAgentLoop(agent, opts)                │
+│  1. Update tool contexts (channel/chatID)           │
+│  2. Build messages (system + history + user)        │
+│  3. Run LLM iteration loop                          │
+│  4. Save conversation to session                    │
+│  5. Trigger summarization if needed                 │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│          runLLMIteration (Tool Loop)                │
+│  Loop until MaxIterations or no tool calls:         │
+│  1. Call LLM with messages + tool definitions       │
+│  2. Handle reasoning output                         │
+│  3. If no tool calls → return final response        │
+│  4. Execute each tool call                          │
+│  5. Append tool results to messages                 │
+│  6. Continue to next iteration                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Core Loop Features:**
+- Message routing based on channel/peer/guild
+- Tool call execution with context injection
+- Automatic context compression on overflow
+- Fallback chain for provider resilience
+- Async tool support for long-running tasks
+
+### 2. Provider System
+
+Providers abstract LLM API interactions, supporting multiple backends.
+
+#### Provider Interface (`pkg/providers/types.go`)
+
+```go
+type LLMProvider interface {
+    Chat(
+        ctx context.Context,
+        messages []Message,
+        tools []ToolDefinition,
+        model string,
+        options map[string]any,
+    ) (*LLMResponse, error)
+    GetDefaultModel() string
+}
+```
+
+#### Supported Providers
+
+- **HTTP-compatible**: OpenAI, Anthropic, Zhipu, DeepSeek, Gemini, Groq, Moonshot, Qwen, NVIDIA, Ollama, OpenRouter, LiteLLM, VLLM, Cerebras
+- **OAuth/Token**: Codex CLI, Claude CLI
+- **gRPC**: GitHub Copilot
+
+**Provider Selection Flow:**
+
+```
+Config → resolveProviderSelection() → Provider Type
+         ↓
+    Model prefix or explicit provider name
+         ↓
+    ┌────────────────────┐
+    │ HTTP Compatible?   │ → HTTPProvider
+    │ Claude Auth?       │ → ClaudeProvider
+    │ Codex Auth?        │ → CodexProvider
+    │ GitHub Copilot?    │ → GitHubCopilotProvider
+    └────────────────────┘
+```
+
+#### Fallback Chain
+
+Automatic failover across models/providers:
+
+```go
+type FallbackCandidate struct {
+    Provider string
+    Model    string
+}
+
+// Configured in model_list or fallbacks
+candidates := []FallbackCandidate{
+    {Provider: "openai", Model: "gpt-5.2"},
+    {Provider: "anthropic", Model: "claude-sonnet-4.6"},
+    {Provider: "zhipu", Model: "glm-4.7"},
+}
+```
+
+**Error Classification:**
+- `auth`: Retry next candidate
+- `rate_limit`: Retry next candidate with cooldown
+- `billing`: Retry next candidate
+- `timeout`: Retry same or next candidate
+- `format`: Skip (not retriable)
+- `overloaded`: Retry next candidate
+
+### 3. Tool System
+
+Tools extend agent capabilities through a unified interface.
+
+#### Tool Registry (`pkg/tools/registry.go`)
+
+```go
+type ToolRegistry struct {
+    tools map[string]Tool
+    mu    sync.RWMutex
+}
+
+// Core methods
+func (r *ToolRegistry) Register(tool Tool)
+func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string]any) *ToolResult
+func (r *ToolRegistry) ToProviderDefs() []providers.ToolDefinition
+```
+
+**Tool Categories:**
+
+1. **Filesystem**: `read_file`, `write_file`, `list_dir`, `edit_file`, `append_file`
+2. **Shell**: `exec` (with safety guards)
+3. **Web**: `web_search`, `web_fetch`
+4. **Communication**: `message` (send to channels)
+5. **Scheduling**: `cron` (reminders, recurring tasks)
+6. **Agent Spawning**: `spawn` (background tasks)
+7. **Hardware**: `i2c`, `spi` (Linux only)
+8. **Skills**: `find_skills`, `install_skill`
+9. **MCP**: Dynamic tools from MCP servers
+
+### 4. Session Management
+
+Conversation history and context management.
+
+#### Session Structure
+
+```
+~/.picoclaw/workspace/
+├── sessions/
+│   ├── main.json           # Default session
+│   ├── telegram-123.json   # Channel-specific
+│   └── agent:worker.json   # Agent-scoped
+├── memory/
+│   └── MEMORY.md          # Long-term memory
+└── state/
+    └── state.json         # Last channel, etc.
+```
+
+**Session Features:**
+- Per-channel conversation isolation
+- Automatic summarization when context exceeds threshold
+- Emergency compression on context overflow
+- Message history with role (user/assistant/tool)
+
+### 5. Message Bus
+
+Asynchronous communication between components.
+
+#### Bus Architecture
+
+```
+┌──────────────┐     Inbound      ┌──────────────┐
+│   Channels   │ ─────────────────→│ Message Bus  │
+│  (Telegram,  │                   │              │
+│   Discord,   │     Outbound      │  - Inbound   │
+│   etc.)      │←───────────────── │  - Outbound  │
+└──────────────┘                   │  - Media     │
+                                   └──────┬───────┘
+                                          │
+                                          ▼
+                                   ┌──────────────┐
+                                   │  AgentLoop   │
+                                   └──────────────┘
+```
+
+**Message Types:**
+- `InboundMessage`: User → Agent
+- `OutboundMessage`: Agent → User
+- `OutboundMediaMessage`: Media attachments
+
+### 6. Context Building
+
+System prompt and message assembly.
+
+#### Context Builder (`pkg/agent/context.go`)
+
+Builds the full message array for LLM:
+
+1. **System Prompt**: AGENTS.md + SOUL.md + IDENTITY.md + USER.md + skills + tool descriptions
+2. **Summary**: Condensed conversation history (if exists)
+3. **History**: Recent messages
+4. **User Message**: Current input
+
+**Workspace Files:**
+- `AGENTS.md`: Agent behavior guide
+- `SOUL.md`: Agent personality/values
+- `IDENTITY.md`: Agent identity/role
+- `USER.md`: User preferences
+- `TOOLS.md`: Tool usage guidelines
+- `HEARTBEAT.md`: Periodic tasks
+- `MEMORY.md`: Long-term memory
+
+## Data Flow
+
+### Complete Request Flow
+
+```
+1. User sends message via Telegram
+   ↓
+2. Telegram channel → MessageBus.PublishInbound()
+   ↓
+3. AgentLoop.Run() consumes message
+   ↓
+4. Route to appropriate agent (based on channel/guild/peer)
+   ↓
+5. Build context (system + history + user message)
+   ↓
+6. Call LLM with tools
+   ↓
+7. LLM returns tool calls
+   ↓
+8. Execute tools (e.g., web_search, exec)
+   ↓
+9. Append tool results to messages
+   ↓
+10. Call LLM again (loop continues)
+    ↓
+11. LLM returns final text response
+    ↓
+12. Save to session
+    ↓
+13. MessageBus.PublishOutbound() → Telegram
+    ↓
+14. User receives response
+```
+
+## Security Architecture
+
+### Sandbox Protection
+
+All file and command operations are restricted to the configured workspace by default.
+
+**Workspace Restriction:**
+```go
+restrict_to_workspace: true  // Default
+```
+
+**Protected Tools:**
+- `read_file`, `write_file`, `list_dir`: Restricted to workspace
+- `exec`: Command paths validated, dangerous patterns blocked
+- `edit_file`, `append_file`: Restricted to workspace
+
+**Safety Guards:**
+- Path traversal prevention (`../` blocked)
+- Symlink escape prevention
+- Dangerous command blocking (rm -rf, format, shutdown, etc.)
+- Absolute path validation
+
+### Path Whitelisting
+
+Optional allowlist for specific paths outside workspace:
+
+```json
+{
+  "tools": {
+    "allow_read_paths": ["^/etc/hosts$"],
+    "allow_write_paths": []
+  }
+}
+```
+
+## Memory Optimization
+
+PicoClaw achieves &lt;10MB RAM through:
+
+1. **No runtime dependencies**: Single static binary
+2. **Efficient data structures**: Minimal allocations
+3. **Streaming processing**: No large buffers
+4. **Lazy loading**: Skills loaded on demand
+5. **Context compression**: Automatic history summarization
+6. **Go's efficiency**: Native compilation, small runtime
+
+## Concurrency Model
+
+- **Message processing**: Single goroutine per agent loop
+- **Tool execution**: Synchronous with context timeout
+- **Async tools**: Spawn tool creates independent subagent goroutines
+- **Heartbeat**: Separate goroutine for periodic tasks
+- **Summarization**: Background goroutine when threshold exceeded
+
+## Configuration System
+
+Hierarchical configuration with environment variable overrides:
+
+```
+Environment Variables
+    ↓ (override)
+config.json
+    ↓ (defaults)
+Hardcoded Defaults
+```
+
+**Key Paths:**
+- Config: `~/.picoclaw/config.json` or `$PICOCLAW_CONFIG`
+- Home: `~/.picoclaw` or `$PICOCLAW_HOME`
+- Workspace: `~/.picoclaw/workspace` (configurable per agent)
+
+## Extension Points
+
+### Adding New Providers
+
+1. Implement `LLMProvider` interface
+2. Add to `resolveProviderSelection()` in `pkg/providers/factory.go`
+3. Add config structure in `pkg/config/config.go`
+
+### Adding New Tools
+
+1. Implement `Tool` interface:
+   ```go
+   type Tool interface {
+       Name() string
+       Description() string
+       Parameters() map[string]any
+       Execute(ctx context.Context, args map[string]any) *ToolResult
+   }
+   ```
+2. Register in `registerSharedTools()` in `pkg/agent/loop.go`
+
+### Adding New Channels
+
+1. Implement channel handler (see `pkg/channels/`)
+2. Connect to `MessageBus`
+3. Add config in `channels` section
+
+## Performance Characteristics
+
+- **Startup time**: &lt;1s on 0.6GHz single core
+- **Memory footprint**: &lt;10MB baseline (may increase to 10-20MB with recent features)
+- **Context compression**: Automatic at 75% of max tokens
+- **LLM caching**: Provider-specific prompt caching support
+- **Tool execution**: Timeout configurable, default 60s

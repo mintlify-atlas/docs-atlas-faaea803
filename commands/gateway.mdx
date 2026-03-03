@@ -1,0 +1,292 @@
+---
+title: 'picoclaw gateway'
+description: 'Start the PicoClaw gateway server for multi-channel integrations'
+---
+
+## Overview
+
+The `gateway` command starts the PicoClaw gateway server, which enables the agent to interact with users through various messaging platforms and channels. The gateway manages incoming messages, scheduled tasks (cron jobs), heartbeat monitoring, device events, and health checks.
+
+## Usage
+
+```bash
+picoclaw gateway [flags]
+```
+
+**Alias:** `picoclaw g`
+
+## Flags
+
+<ParamField path="-d, --debug" type="boolean" default="false">
+  Enable debug logging to see detailed information about gateway operations, including:
+  - Channel connection details
+  - Message routing
+  - Agent tool usage
+  - Service lifecycle events
+  
+  ```bash
+  picoclaw gateway -d
+  ```
+</ParamField>
+
+## What the Gateway Does
+
+When started, the gateway:
+
+1. **Initializes the Agent**: Loads tools and skills
+2. **Starts Services**:
+   - Cron service for scheduled tasks
+   - Heartbeat service for periodic checks
+   - Device monitoring service (if enabled)
+   - Media cleanup service (if enabled)
+3. **Connects Channels**: Establishes connections to configured messaging platforms
+4. **Starts HTTP Server**: Provides health endpoints and webhook handlers
+5. **Processes Messages**: Routes incoming messages to the agent and sends responses
+
+## Startup Output
+
+```bash
+picoclaw gateway
+```
+
+**Expected Output:**
+```
+📦 Agent Status:
+  • Tools: 15 loaded
+  • Skills: 8/10 available
+✓ Channels enabled: telegram, slack, discord
+✓ Gateway started on 0.0.0.0:8080
+Press Ctrl+C to stop
+✓ Cron service started
+✓ Heartbeat service started
+✓ Device event service started
+✓ Health endpoints available at http://0.0.0.0:8080/health and /ready
+```
+
+## Supported Channels
+
+The gateway supports multiple messaging platforms:
+
+- **Telegram**: Bot API integration
+- **Discord**: Bot integration
+- **Slack**: App integration
+- **WhatsApp**: Business API and native
+- **Feishu/Lark**: Bot integration
+- **DingTalk**: Bot integration
+- **WeCom**: Enterprise WeChat
+- **QQ**: Bot integration
+- **LINE**: Messaging API
+- **OneBot**: Standard protocol
+- **MaixCAM**: Custom device integration
+- **Pico**: Custom protocol
+
+Channels are configured in your `config.yaml` file.
+
+## Health Endpoints
+
+The gateway exposes HTTP endpoints for monitoring:
+
+### `/health`
+Returns gateway health status
+
+```bash
+curl http://localhost:8080/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-03-03T12:00:00Z"
+}
+```
+
+### `/ready`
+Returns readiness status for load balancers
+
+```bash
+curl http://localhost:8080/ready
+```
+
+**Response:**
+```json
+{
+  "ready": true
+}
+```
+
+## Services
+
+### Cron Service
+
+Executes scheduled tasks defined via `picoclaw cron` commands. Tasks run in the background and can optionally deliver results to specified channels.
+
+### Heartbeat Service
+
+Periodically checks system health and can trigger agent actions based on configured prompts.
+
+### Device Service
+
+Monitors USB device events and can trigger workflows when devices are connected/disconnected (e.g., MaixCAM devices).
+
+### Media Cleanup
+
+Automatically removes old media files based on TTL configuration to prevent disk space issues.
+
+## Examples
+
+### Start Gateway (Standard)
+
+```bash
+picoclaw gateway
+```
+
+### Start Gateway with Debug Logging
+
+```bash
+picoclaw gateway -d
+```
+
+**Output:**
+```
+🔍 Debug mode enabled
+📦 Agent Status:
+  • Tools: 15 loaded
+  • Skills: 8/10 available
+[DEBUG] Loading channel: telegram
+[DEBUG] Telegram bot connected: @mybot
+[DEBUG] Loading channel: slack
+[DEBUG] Slack app connected: workspace-id
+✓ Channels enabled: telegram, slack
+✓ Gateway started on 0.0.0.0:8080
+...
+```
+
+### Using the Alias
+
+```bash
+picoclaw g
+```
+
+## Configuration
+
+The gateway is configured via `config.yaml`:
+
+```yaml
+gateway:
+  host: 0.0.0.0
+  port: 8080
+
+channels:
+  telegram:
+    enabled: true
+    bot_token: "YOUR_BOT_TOKEN"
+  
+  slack:
+    enabled: true
+    bot_token: "xoxb-..."
+    app_token: "xapp-..."
+
+tools:
+  cron:
+    exec_timeout_minutes: 30
+  
+  media_cleanup:
+    enabled: true
+    max_age: 1440  # 24 hours in minutes
+    interval: 60   # cleanup every hour
+
+heartbeat:
+  enabled: true
+  interval: 300  # 5 minutes
+
+devices:
+  enabled: true
+  monitor_usb: true
+```
+
+## Graceful Shutdown
+
+Press `Ctrl+C` to stop the gateway. It will:
+
+1. Stop accepting new messages
+2. Complete in-flight requests (15 second timeout)
+3. Close channel connections
+4. Stop all services
+5. Clean up resources
+
+**Output:**
+```
+^C
+Shutting down...
+✓ Gateway stopped
+```
+
+## Tips
+
+- **First Run**: Ensure you've configured at least one channel before starting the gateway
+- **Port Conflicts**: If port 8080 is in use, change `gateway.port` in config
+- **Debug Mode**: Use `-d` flag when troubleshooting channel connections
+- **Health Checks**: Set up monitoring to poll `/health` endpoint
+- **Reverse Proxy**: Consider using nginx or similar for production deployments
+- **Firewall**: Ensure configured port is accessible if using webhooks
+
+## Common Issues
+
+### No Channels Enabled
+
+**Output:**
+```
+⚠ Warning: No channels enabled
+✓ Gateway started on 0.0.0.0:8080
+```
+
+**Solution**: Configure and enable at least one channel in `config.yaml`
+
+### Port Already in Use
+
+**Error:**
+```
+Error: listen tcp 0.0.0.0:8080: bind: address already in use
+```
+
+**Solution**: Change the port in config or stop the conflicting service
+
+### Configuration Error
+
+**Error:**
+```
+Error loading config: config file not found
+```
+
+**Solution**: Run `picoclaw onboard` first to create configuration
+
+## Docker Deployment
+
+Example Docker Compose configuration:
+
+```yaml
+version: '3.8'
+services:
+  picoclaw:
+    image: picoclaw:latest
+    command: gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/root/.config/picoclaw/config.yaml
+      - ./workspace:/root/.picoclaw/workspace
+    restart: unless-stopped
+```
+
+## Exit Codes
+
+- `0`: Clean shutdown
+- `1`: Error (configuration, channel, or service failure)
+
+## See Also
+
+- [picoclaw agent](/commands/agent) - Direct agent interaction
+- [picoclaw cron](/commands/cron) - Manage scheduled tasks
+- [picoclaw status](/commands/status) - Check gateway configuration
+- [Channels Configuration](/channels) - Configure messaging platforms

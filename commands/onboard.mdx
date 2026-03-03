@@ -1,0 +1,301 @@
+---
+title: 'picoclaw onboard'
+description: 'Initialize PicoClaw configuration and workspace'
+---
+
+## Overview
+
+The `onboard` command sets up PicoClaw for first-time use by creating the default configuration file and initializing the workspace directory with templates and necessary files.
+
+## Usage
+
+```bash
+picoclaw onboard
+```
+
+**Alias:** `picoclaw o`
+
+## What It Does
+
+The onboard command:
+
+1. **Creates Configuration File**: Generates `~/.config/picoclaw/config.yaml` with default settings
+2. **Initializes Workspace**: Creates `~/.picoclaw/workspace/` directory structure
+3. **Copies Templates**: Installs default templates, skills, and tool configurations
+4. **Displays Next Steps**: Shows instructions for completing setup
+
+## Interactive Prompts
+
+If configuration already exists, you'll be prompted:
+
+```
+Config already exists at ~/.config/picoclaw/config.yaml
+Overwrite? (y/n): 
+```
+
+- Type `y` to overwrite existing configuration
+- Type `n` to abort without changes
+
+## Output
+
+```bash
+picoclaw onboard
+```
+
+**Expected Output:**
+```
+🤖 picoclaw is ready!
+
+Next steps:
+  1. Add your API key to ~/.config/picoclaw/config.yaml
+
+     Recommended:
+     - OpenRouter: https://openrouter.ai/keys (access 100+ models)
+     - Ollama:     https://ollama.com (local, free)
+
+     See README.md for 17+ supported providers.
+
+  2. Chat: picoclaw agent -m "Hello!"
+```
+
+## Files Created
+
+### Configuration File
+
+**Location:** `~/.config/picoclaw/config.yaml`
+
+Contains default configuration including:
+- Provider settings (OpenAI, Anthropic, OpenRouter, etc.)
+- Agent defaults (model, temperature, token limits)
+- Gateway settings (host, port)
+- Channel configurations
+- Tool settings
+- Workspace path
+
+### Workspace Directory
+
+**Location:** `~/.picoclaw/workspace/`
+
+Includes:
+- `cron/` - Scheduled task storage
+- `sessions/` - Conversation history
+- `media/` - Temporary media files
+- `skills/` - Custom skills and prompts
+- `tools/` - Tool configurations
+- `state/` - Application state
+
+## Examples
+
+### First-Time Setup
+
+```bash
+picoclaw onboard
+```
+
+### Reinitialize Configuration
+
+To reset configuration to defaults:
+
+```bash
+picoclaw onboard
+# When prompted:
+Config already exists at ~/.config/picoclaw/config.yaml
+Overwrite? (y/n): y
+```
+
+### Using the Alias
+
+```bash
+picoclaw o
+```
+
+## After Onboarding
+
+### 1. Configure Your Provider
+
+Edit the configuration file:
+
+```bash
+# Open in your editor
+vim ~/.config/picoclaw/config.yaml
+# or
+nano ~/.config/picoclaw/config.yaml
+```
+
+**Option A: OpenRouter (Recommended)**
+
+Get API key from https://openrouter.ai/keys
+
+```yaml
+providers:
+  openrouter:
+    api_key: "sk-or-v1-..."
+
+agents:
+  defaults:
+    model_name: "anthropic/claude-sonnet-4.6"
+```
+
+**Option B: Anthropic Direct**
+
+```yaml
+providers:
+  anthropic:
+    api_key: "sk-ant-..."
+
+agents:
+  defaults:
+    model_name: "claude-sonnet-4.6"
+```
+
+**Option C: OpenAI**
+
+```yaml
+providers:
+  openai:
+    api_key: "sk-..."
+
+agents:
+  defaults:
+    model_name: "gpt-5.2"
+```
+
+**Option D: Local (Ollama)**
+
+```yaml
+providers:
+  ollama:
+    api_base: "http://localhost:11434"
+
+agents:
+  defaults:
+    model_name: "llama3.1:70b"
+```
+
+### 2. Test Your Setup
+
+Verify everything is configured correctly:
+
+```bash
+picoclaw status
+```
+
+**Expected Output:**
+```
+🤖 picoclaw Status
+Version: 1.0.0
+
+Config: ~/.config/picoclaw/config.yaml ✓
+Workspace: ~/.picoclaw/workspace ✓
+Model: claude-sonnet-4.6
+Anthropic API: ✓
+```
+
+### 3. Start Using PicoClaw
+
+Send your first message:
+
+```bash
+picoclaw agent -m "Hello! What can you help me with?"
+```
+
+## Alternative Authentication
+
+Instead of manually editing the config, you can use the `auth` command for OAuth providers:
+
+```bash
+# OpenAI with OAuth
+picoclaw auth login --provider openai
+
+# Anthropic with token
+picoclaw auth login --provider anthropic
+# (paste your API key when prompted)
+
+# Google Antigravity
+picoclaw auth login --provider google-antigravity
+```
+
+## Workspace Customization
+
+After onboarding, you can customize:
+
+### Custom Skills
+
+Add `.md` files to `~/.picoclaw/workspace/skills/`:
+
+```markdown
+# My Custom Skill
+
+This skill helps with...
+
+## Instructions
+- Step 1
+- Step 2
+```
+
+### Tool Configurations
+
+Modify tool behavior in `~/.picoclaw/workspace/tools/`
+
+## Tips
+
+- **Backup Config**: Save a copy of your config after customization
+- **Version Control**: Consider tracking your workspace in git
+- **Multiple Configs**: Use different configs for development/production
+- **Provider Choice**: OpenRouter provides access to 100+ models with a single API key
+- **Local Models**: Ollama is free and runs completely offline
+
+## Troubleshooting
+
+### Permission Denied
+
+```bash
+Error: Permission denied creating ~/.config/picoclaw/config.yaml
+```
+
+**Solution**: Check directory permissions or create directories manually:
+
+```bash
+mkdir -p ~/.config/picoclaw
+mkdir -p ~/.picoclaw/workspace
+```
+
+### Config Already Exists
+
+If you want to keep custom settings, manually edit instead of overwriting:
+
+```bash
+vim ~/.config/picoclaw/config.yaml
+```
+
+### Workspace Path Issues
+
+If you want to use a custom workspace location, edit config after onboarding:
+
+```yaml
+workspace_path: "/custom/path/to/workspace"
+```
+
+## Environment Variables
+
+You can also use environment variables for API keys:
+
+```bash
+export OPENROUTER_API_KEY="sk-or-v1-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-..."
+
+picoclaw agent -m "Hello"
+```
+
+## Exit Codes
+
+- `0`: Success
+- `1`: Error (permission denied, disk full, etc.)
+
+## See Also
+
+- [picoclaw status](/commands/status) - Verify configuration
+- [picoclaw auth](/commands/auth) - Authenticate with providers
+- [Configuration Guide](/configuration) - Detailed configuration options
+- [Supported Providers](/providers) - Complete list of AI providers

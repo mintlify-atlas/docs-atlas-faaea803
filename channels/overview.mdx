@@ -1,0 +1,154 @@
+---
+title: Chat Channels Overview
+description: Connect PicoClaw to Telegram, Discord, WhatsApp, QQ, DingTalk, LINE, and WeCom
+---
+
+PicoClaw supports multiple chat platforms so you can interact with your AI assistant wherever you prefer. All channels use a shared Gateway server architecture for efficient resource usage.
+
+## Supported Channels
+
+PicoClaw integrates with the following chat platforms:
+
+| Channel | Setup Difficulty | Features |
+| --- | --- | --- |
+| [Telegram](/channels/telegram) | Easy | Bot token only, recommended for beginners |
+| [Discord](/channels/discord) | Easy | Bot token + intents configuration |
+| [WhatsApp](/channels/whatsapp) | Easy | QR code scan or bridge URL |
+| [QQ](/channels/qq) | Easy | AppID + AppSecret from QQ Open Platform |
+| [DingTalk](/channels/dingtalk) | Medium | App credentials required |
+| [LINE](/channels/line) | Medium | Webhook URL + credentials |
+| [WeCom](/channels/wecom) | Medium | Multiple integration options available |
+
+## Gateway Server Architecture
+
+All webhook-based channels share a single HTTP Gateway server that listens on `gateway.host:gateway.port` (default `127.0.0.1:18790`). This unified architecture provides:
+
+- **Resource Efficiency**: Single server handles all webhook channels
+- **Simplified Configuration**: No per-channel port management
+- **Easy Deployment**: One gateway process for all integrations
+
+<Note>
+Telegram, Discord, WhatsApp (native), and QQ use polling/WebSocket connections and don't require webhook configuration. LINE and WeCom use webhooks served on the shared Gateway port.
+</Note>
+
+### Starting the Gateway
+
+To enable chat channels, start the Gateway server:
+
+```bash
+picoclaw gateway
+```
+
+The Gateway will:
+1. Load channel configurations from `~/.picoclaw/config.json`
+2. Start enabled channels automatically
+3. Handle incoming messages from all platforms
+4. Route responses back to users
+
+## Setup Comparison
+
+| Channel | Authentication | Network Requirements | Group Chat Support |
+| --- | --- | --- | --- |
+| Telegram | Bot token from @BotFather | Outbound HTTPS | ✅ Yes |
+| Discord | Bot token + intents | Outbound WebSocket | ✅ Yes (configurable) |
+| WhatsApp | QR code or bridge | Depends on mode | ✅ Yes |
+| QQ | AppID + AppSecret | Outbound HTTPS | ✅ Yes |
+| DingTalk | Client ID + Secret | Outbound HTTPS | ✅ Yes |
+| LINE | Channel credentials | Inbound HTTPS webhook | ✅ Yes (@mention) |
+| WeCom | Token + AES key | Inbound HTTPS webhook | ✅ Yes (varies by mode) |
+
+## Access Control
+
+All channels support `allow_from` configuration to restrict who can interact with your bot:
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "allow_from": ["123456789"]
+    }
+  }
+}
+```
+
+- **Empty array `[]`**: Allow all users (public bot)
+- **With IDs**: Only specified users can interact
+- **User ID format**: Varies by platform (numeric for Telegram/QQ, string for Discord/LINE)
+
+## Quick Start Recommendations
+
+### First Time Setup
+
+If you're new to PicoClaw, we recommend starting with **Telegram**:
+
+<Steps>
+  <Step title="Create bot with @BotFather">
+    Takes less than 2 minutes, no technical configuration needed
+  </Step>
+  <Step title="Add token to config">
+    Single token field, no webhook or server setup required
+  </Step>
+  <Step title="Start gateway">
+    Run `picoclaw gateway` and start chatting
+  </Step>
+</Steps>
+
+### For Enterprise
+
+If you're deploying in a corporate environment:
+
+- **Chinese companies**: Use [WeCom](/channels/wecom) (企业微信) or [DingTalk](/channels/dingtalk)
+- **International teams**: Use [Discord](/channels/discord) or [Telegram](/channels/telegram)
+- **Customer support**: Use [WhatsApp](/channels/whatsapp) or [LINE](/channels/line)
+
+## Configuration Location
+
+All channel configurations are stored in `~/.picoclaw/config.json` under the `channels` section:
+
+```json
+{
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18790
+  },
+  "channels": {
+    "telegram": { "enabled": false },
+    "discord": { "enabled": false },
+    "whatsapp": { "enabled": false },
+    "qq": { "enabled": false },
+    "dingtalk": { "enabled": false },
+    "line": { "enabled": false },
+    "wecom": { "enabled": false }
+  }
+}
+```
+
+## Next Steps
+
+Choose a channel to get started:
+
+<CardGroup cols={2}>
+  <Card title="Telegram" icon="telegram" href="/channels/telegram">
+    Easiest setup, recommended for beginners
+  </Card>
+  <Card title="Discord" icon="discord" href="/channels/discord">
+    Popular for communities and teams
+  </Card>
+  <Card title="WhatsApp" icon="whatsapp" href="/channels/whatsapp">
+    Native integration or bridge mode
+  </Card>
+  <Card title="QQ" icon="message" href="/channels/qq">
+    Popular in China, easy setup
+  </Card>
+  <Card title="DingTalk" icon="building" href="/channels/dingtalk">
+    Enterprise messaging for businesses
+  </Card>
+  <Card title="LINE" icon="comment" href="/channels/line">
+    Popular in Japan and Southeast Asia
+  </Card>
+  <Card title="WeCom" icon="wechat" href="/channels/wecom">
+    Enterprise WeChat with multiple modes
+  </Card>
+</CardGroup>

@@ -1,0 +1,140 @@
+---
+title: Docker Deployment
+description: Run PicoClaw using Docker Compose for easy deployment and updates
+---
+
+## Overview
+
+You can run PicoClaw using Docker Compose without installing anything locally. This method is ideal for containerized deployments and production environments.
+
+## Prerequisites
+
+- Docker and Docker Compose installed
+- Git (for cloning the repository)
+
+## Installation Steps
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/sipeed/picoclaw.git
+cd picoclaw
+```
+
+### 2. Initial Setup (Gateway Mode)
+
+On first run, Docker Compose will auto-generate the configuration file:
+
+```bash
+docker compose -f docker/docker-compose.yml --profile gateway up
+```
+
+The container will print "First-run setup complete." and stop. This creates `docker/data/config.json`.
+
+### 3. Configure API Keys
+
+Edit the generated configuration file:
+
+```bash
+vim docker/data/config.json
+```
+
+Set your provider API keys, bot tokens, and other configuration options. See the [Configuration Guide](/configuration) for details.
+
+### 4. Start Gateway Mode
+
+Start PicoClaw in gateway mode (runs in background):
+
+```bash
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+<Note>
+**Docker Network Configuration**: By default, the Gateway listens on `127.0.0.1` which is not accessible from the host. If you need to access the health endpoints or expose ports, set `PICOCLAW_GATEWAY_HOST=0.0.0.0` in your environment or update `config.json`.
+</Note>
+
+### 5. Check Logs
+
+Monitor the gateway logs:
+
+```bash
+docker compose -f docker/docker-compose.yml logs -f picoclaw-gateway
+```
+
+### 6. Stop the Gateway
+
+To stop the gateway:
+
+```bash
+docker compose -f docker/docker-compose.yml --profile gateway down
+```
+
+## Agent Mode (One-shot)
+
+You can also use Docker Compose to run PicoClaw in agent mode for one-time queries or interactive sessions.
+
+### Ask a Question
+
+Run a single query:
+
+```bash
+docker compose -f docker/docker-compose.yml run --rm picoclaw-agent -m "What is 2+2?"
+```
+
+### Interactive Mode
+
+Start an interactive chat session:
+
+```bash
+docker compose -f docker/docker-compose.yml run --rm picoclaw-agent
+```
+
+## Updating PicoClaw
+
+To update to the latest version:
+
+```bash
+# Pull the latest image
+docker compose -f docker/docker-compose.yml pull
+
+# Restart with the new image
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+## Docker Compose Profiles
+
+PicoClaw's `docker-compose.yml` uses profiles to manage different modes:
+
+| Profile | Description | Use Case |
+|---------|-------------|----------|
+| `gateway` | Runs PicoClaw as a service with chat integrations | Production deployment with Telegram, Discord, etc. |
+| (default) | Agent mode for one-shot queries | Interactive CLI usage, testing |
+
+## Volume Mounts
+
+The Docker setup uses the following volume mounts:
+
+- `docker/data/config.json` → Container config
+- `docker/data/workspace/` → Agent workspace (sessions, memory, skills)
+
+All data persists across container restarts.
+
+## Environment Variables
+
+You can override configuration using environment variables:
+
+```bash
+# Set gateway host to allow external access
+export PICOCLAW_GATEWAY_HOST=0.0.0.0
+
+# Start with custom settings
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+See [Environment Variables](/configuration/environment-variables) for all available options.
+
+## Next Steps
+
+- [Configure Chat Apps](/chat-apps) - Connect Telegram, Discord, WhatsApp
+- [Configuration Guide](/configuration) - Customize your deployment
+- [Troubleshooting](/troubleshooting) - Common issues and solutions

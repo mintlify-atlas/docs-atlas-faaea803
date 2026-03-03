@@ -1,0 +1,424 @@
+---
+title: Environment Variables
+description: Complete reference for PicoClaw environment variable overrides
+---
+
+## Overview
+
+All PicoClaw configuration options can be overridden using environment variables. This is useful for:
+
+- **Containerized deployments** (Docker, Kubernetes)
+- **CI/CD pipelines**
+- **Temporary overrides** without editing config files
+- **Secret management** (API keys, tokens)
+
+## Environment Variable Format
+
+Environment variables follow this pattern:
+
+```
+PICOCLAW_<SECTION>_<SUBSECTION>_<FIELD>
+```
+
+Examples:
+- `PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME`
+- `PICOCLAW_TOOLS_WEB_BRAVE_API_KEY`
+- `PICOCLAW_HEARTBEAT_ENABLED`
+
+## Core Configuration
+
+### PICOCLAW_CONFIG
+
+**Purpose:** Override config file location
+
+```bash
+PICOCLAW_CONFIG=/etc/picoclaw/production.json picoclaw gateway
+```
+
+This tells PicoClaw to load configuration from a custom location instead of `~/.picoclaw/config.json`.
+
+### PICOCLAW_HOME
+
+**Purpose:** Override root directory for PicoClaw data
+
+```bash
+PICOCLAW_HOME=/opt/picoclaw picoclaw agent
+```
+
+This changes:
+- Default workspace to `/opt/picoclaw/workspace`
+- Default config to `/opt/picoclaw/config.json` (if not using `PICOCLAW_CONFIG`)
+
+## Agent Configuration
+
+### Workspace and Security
+
+```bash
+# Workspace location
+PICOCLAW_AGENTS_DEFAULTS_WORKSPACE=/custom/workspace
+
+# Workspace restrictions
+PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE=true
+PICOCLAW_AGENTS_DEFAULTS_ALLOW_READ_OUTSIDE_WORKSPACE=false
+```
+
+### Model Configuration
+
+```bash
+# Model selection
+PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=claude-sonnet-4.6
+
+# Legacy provider (deprecated)
+PICOCLAW_AGENTS_DEFAULTS_PROVIDER=anthropic
+PICOCLAW_AGENTS_DEFAULTS_MODEL=claude-sonnet-4.6
+
+# Image model
+PICOCLAW_AGENTS_DEFAULTS_IMAGE_MODEL=gpt-5.2-vision
+```
+
+### Agent Behavior
+
+```bash
+# Token limits
+PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS=8192
+
+# Temperature (0.0 - 2.0)
+PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE=0.7
+
+# Tool iteration limit
+PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS=20
+
+# Media size limit (bytes)
+PICOCLAW_AGENTS_DEFAULTS_MAX_MEDIA_SIZE=20971520
+```
+
+## Provider Configuration (Legacy)
+
+### OpenAI
+
+```bash
+PICOCLAW_PROVIDERS_OPENAI_API_KEY=sk-proj-...
+PICOCLAW_PROVIDERS_OPENAI_API_BASE=https://api.openai.com/v1
+PICOCLAW_PROVIDERS_OPENAI_PROXY=http://proxy:8080
+PICOCLAW_PROVIDERS_OPENAI_REQUEST_TIMEOUT=300
+PICOCLAW_PROVIDERS_OPENAI_WEB_SEARCH=true
+```
+
+### Anthropic
+
+```bash
+PICOCLAW_PROVIDERS_ANTHROPIC_API_KEY=sk-ant-...
+PICOCLAW_PROVIDERS_ANTHROPIC_API_BASE=https://api.anthropic.com/v1
+PICOCLAW_PROVIDERS_ANTHROPIC_REQUEST_TIMEOUT=300
+```
+
+### Zhipu (智谱)
+
+```bash
+PICOCLAW_PROVIDERS_ZHIPU_API_KEY=your-key
+PICOCLAW_PROVIDERS_ZHIPU_API_BASE=https://open.bigmodel.cn/api/paas/v4
+```
+
+### OpenRouter
+
+```bash
+PICOCLAW_PROVIDERS_OPENROUTER_API_KEY=sk-or-v1-...
+PICOCLAW_PROVIDERS_OPENROUTER_API_BASE=https://openrouter.ai/api/v1
+```
+
+### Groq
+
+```bash
+PICOCLAW_PROVIDERS_GROQ_API_KEY=gsk_...
+PICOCLAW_PROVIDERS_GROQ_API_BASE=https://api.groq.com/openai/v1
+```
+
+### Gemini
+
+```bash
+PICOCLAW_PROVIDERS_GEMINI_API_KEY=AIza...
+PICOCLAW_PROVIDERS_GEMINI_API_BASE=https://generativelanguage.googleapis.com/v1beta
+```
+
+### Other Providers
+
+```bash
+# DeepSeek
+PICOCLAW_PROVIDERS_DEEPSEEK_API_KEY=sk-...
+PICOCLAW_PROVIDERS_DEEPSEEK_API_BASE=https://api.deepseek.com/v1
+
+# Qwen
+PICOCLAW_PROVIDERS_QWEN_API_KEY=sk-...
+PICOCLAW_PROVIDERS_QWEN_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+
+# Moonshot
+PICOCLAW_PROVIDERS_MOONSHOT_API_KEY=sk-...
+PICOCLAW_PROVIDERS_MOONSHOT_API_BASE=https://api.moonshot.cn/v1
+
+# Cerebras
+PICOCLAW_PROVIDERS_CEREBRAS_API_KEY=...
+PICOCLAW_PROVIDERS_CEREBRAS_API_BASE=https://api.cerebras.ai/v1
+
+# Ollama (local)
+PICOCLAW_PROVIDERS_OLLAMA_API_BASE=http://localhost:11434/v1
+
+# vLLM (local)
+PICOCLAW_PROVIDERS_VLLM_API_BASE=http://localhost:8000/v1
+```
+
+## Tools Configuration
+
+### Web Search - Brave
+
+```bash
+PICOCLAW_TOOLS_WEB_BRAVE_ENABLED=true
+PICOCLAW_TOOLS_WEB_BRAVE_API_KEY=BSA...
+PICOCLAW_TOOLS_WEB_BRAVE_MAX_RESULTS=5
+```
+
+### Web Search - Tavily
+
+```bash
+PICOCLAW_TOOLS_WEB_TAVILY_ENABLED=true
+PICOCLAW_TOOLS_WEB_TAVILY_API_KEY=tvly-...
+PICOCLAW_TOOLS_WEB_TAVILY_BASE_URL=https://api.tavily.com
+PICOCLAW_TOOLS_WEB_TAVILY_MAX_RESULTS=5
+```
+
+### Web Search - DuckDuckGo
+
+```bash
+PICOCLAW_TOOLS_WEB_DUCKDUCKGO_ENABLED=true
+PICOCLAW_TOOLS_WEB_DUCKDUCKGO_MAX_RESULTS=5
+```
+
+### Web Tools General
+
+```bash
+# Proxy for all web tools
+PICOCLAW_TOOLS_WEB_PROXY=http://proxy:8080
+
+# Fetch size limit (bytes)
+PICOCLAW_TOOLS_WEB_FETCH_LIMIT_BYTES=10485760
+```
+
+### Cron Tools
+
+```bash
+# Timeout for cron tasks (minutes)
+PICOCLAW_TOOLS_CRON_EXEC_TIMEOUT_MINUTES=5
+```
+
+### Exec Tools
+
+```bash
+PICOCLAW_TOOLS_EXEC_ENABLE_DENY_PATTERNS=true
+```
+
+### MCP
+
+```bash
+PICOCLAW_TOOLS_MCP_ENABLED=true
+```
+
+### Skills Registry
+
+```bash
+PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_ENABLED=true
+PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_BASE_URL=https://clawhub.ai
+PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_AUTH_TOKEN=...
+PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_TIMEOUT=30
+
+PICOCLAW_SKILLS_MAX_CONCURRENT_SEARCHES=2
+PICOCLAW_SKILLS_SEARCH_CACHE_MAX_SIZE=50
+PICOCLAW_SKILLS_SEARCH_CACHE_TTL_SECONDS=300
+```
+
+### Media Cleanup
+
+```bash
+PICOCLAW_MEDIA_CLEANUP_ENABLED=true
+PICOCLAW_MEDIA_CLEANUP_MAX_AGE=30
+PICOCLAW_MEDIA_CLEANUP_INTERVAL=5
+```
+
+## Gateway Configuration
+
+```bash
+PICOCLAW_GATEWAY_HOST=0.0.0.0
+PICOCLAW_GATEWAY_PORT=18790
+```
+
+## Heartbeat Configuration
+
+```bash
+PICOCLAW_HEARTBEAT_ENABLED=true
+PICOCLAW_HEARTBEAT_INTERVAL=30  # minutes
+```
+
+## Devices Configuration
+
+```bash
+PICOCLAW_DEVICES_ENABLED=false
+PICOCLAW_DEVICES_MONITOR_USB=true
+```
+
+## Channel Configuration
+
+### Telegram
+
+```bash
+PICOCLAW_CHANNELS_TELEGRAM_ENABLED=true
+PICOCLAW_CHANNELS_TELEGRAM_TOKEN=123456:ABC-DEF...
+PICOCLAW_CHANNELS_TELEGRAM_BASE_URL=https://api.telegram.org
+PICOCLAW_CHANNELS_TELEGRAM_PROXY=socks5://proxy:1080
+PICOCLAW_CHANNELS_TELEGRAM_REASONING_CHANNEL_ID=
+```
+
+### Discord
+
+```bash
+PICOCLAW_CHANNELS_DISCORD_ENABLED=true
+PICOCLAW_CHANNELS_DISCORD_TOKEN=your-bot-token
+PICOCLAW_CHANNELS_DISCORD_PROXY=
+PICOCLAW_CHANNELS_DISCORD_MENTION_ONLY=false
+```
+
+### WhatsApp
+
+```bash
+PICOCLAW_CHANNELS_WHATSAPP_ENABLED=true
+PICOCLAW_CHANNELS_WHATSAPP_BRIDGE_URL=ws://localhost:3001
+PICOCLAW_CHANNELS_WHATSAPP_USE_NATIVE=true
+PICOCLAW_CHANNELS_WHATSAPP_SESSION_STORE_PATH=
+```
+
+### QQ
+
+```bash
+PICOCLAW_CHANNELS_QQ_ENABLED=true
+PICOCLAW_CHANNELS_QQ_APP_ID=your-app-id
+PICOCLAW_CHANNELS_QQ_APP_SECRET=your-secret
+```
+
+### DingTalk
+
+```bash
+PICOCLAW_CHANNELS_DINGTALK_ENABLED=true
+PICOCLAW_CHANNELS_DINGTALK_CLIENT_ID=your-client-id
+PICOCLAW_CHANNELS_DINGTALK_CLIENT_SECRET=your-secret
+```
+
+### LINE
+
+```bash
+PICOCLAW_CHANNELS_LINE_ENABLED=true
+PICOCLAW_CHANNELS_LINE_CHANNEL_SECRET=your-secret
+PICOCLAW_CHANNELS_LINE_CHANNEL_ACCESS_TOKEN=your-token
+PICOCLAW_CHANNELS_LINE_WEBHOOK_HOST=0.0.0.0
+PICOCLAW_CHANNELS_LINE_WEBHOOK_PORT=18791
+PICOCLAW_CHANNELS_LINE_WEBHOOK_PATH=/webhook/line
+```
+
+### WeCom
+
+```bash
+PICOCLAW_CHANNELS_WECOM_ENABLED=true
+PICOCLAW_CHANNELS_WECOM_TOKEN=your-token
+PICOCLAW_CHANNELS_WECOM_ENCODING_AES_KEY=your-key
+PICOCLAW_CHANNELS_WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/...
+PICOCLAW_CHANNELS_WECOM_WEBHOOK_PATH=/webhook/wecom
+```
+
+## Usage Examples
+
+### Docker Compose
+
+```yaml
+version: '3'
+services:
+  picoclaw:
+    image: picoclaw:latest
+    environment:
+      - PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=claude-sonnet-4.6
+      - PICOCLAW_PROVIDERS_ANTHROPIC_API_KEY=sk-ant-...
+      - PICOCLAW_TOOLS_WEB_BRAVE_API_KEY=BSA...
+      - PICOCLAW_CHANNELS_TELEGRAM_TOKEN=123456:ABC...
+      - PICOCLAW_GATEWAY_HOST=0.0.0.0
+```
+
+### Kubernetes Secret
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: picoclaw-secrets
+type: Opaque
+stringData:
+  PICOCLAW_PROVIDERS_ANTHROPIC_API_KEY: sk-ant-...
+  PICOCLAW_TOOLS_WEB_BRAVE_API_KEY: BSA...
+  PICOCLAW_CHANNELS_TELEGRAM_TOKEN: 123456:ABC...
+```
+
+### Shell Script
+
+```bash
+#!/bin/bash
+export PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=gpt-5.2
+export PICOCLAW_PROVIDERS_OPENAI_API_KEY=sk-proj-...
+export PICOCLAW_TOOLS_WEB_BRAVE_API_KEY=BSA...
+
+picoclaw gateway
+```
+
+### systemd Service
+
+```ini
+[Unit]
+Description=PicoClaw Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=picoclaw
+Environment="PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=claude-sonnet-4.6"
+Environment="PICOCLAW_PROVIDERS_ANTHROPIC_API_KEY=sk-ant-..."
+Environment="PICOCLAW_GATEWAY_HOST=0.0.0.0"
+ExecStart=/usr/local/bin/picoclaw gateway
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Best Practices
+
+1. **Use secrets management** for API keys in production
+2. **Never commit** `.env` files with real credentials
+3. **Use read-only** environment variables in containers
+4. **Override selectively** - only set what you need to change
+5. **Document** environment variable usage in deployment docs
+
+## Precedence
+
+Configuration resolution order:
+
+1. **Environment Variables** (highest priority)
+2. **Config File** (`~/.picoclaw/config.json`)
+3. **Default Values** (lowest priority)
+
+Example:
+```bash
+# config.json has model_name: "gpt-5.2"
+# Environment variable overrides it
+PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=claude-sonnet-4.6 picoclaw agent
+# Agent will use claude-sonnet-4.6
+```
+
+## Next Steps
+
+- [Configuration Overview](/configuration/overview)
+- [Agent Configuration](/configuration/agents)
+- [Model Configuration](/configuration/models)
+- [Tools Configuration](/configuration/tools)

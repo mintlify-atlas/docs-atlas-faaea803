@@ -1,0 +1,269 @@
+---
+title: Agent Configuration
+description: Configure agent behavior, models, and execution limits
+---
+
+## Agent Defaults
+
+The `agents.defaults` section configures the default behavior for all agents in PicoClaw.
+
+### Configuration Structure
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "restrict_to_workspace": true,
+      "allow_read_outside_workspace": false,
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "max_tool_iterations": 20,
+      "max_media_size": 20971520
+    }
+  }
+}
+```
+
+## Configuration Options
+
+### workspace
+
+**Type:** `string`  
+**Default:** `~/.picoclaw/workspace`  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_WORKSPACE`
+
+Working directory where the agent operates. All agent data is stored here:
+
+```bash
+~/.picoclaw/workspace/
+├── sessions/          # Conversation history
+├── memory/           # Long-term memory
+├── state/            # Persistent state
+├── cron/             # Scheduled jobs
+├── skills/           # Custom skills
+├── AGENTS.md         # Agent behavior guide
+├── HEARTBEAT.md      # Periodic tasks
+├── IDENTITY.md       # Agent identity
+└── USER.md           # User preferences
+```
+
+### restrict_to_workspace
+
+**Type:** `boolean`  
+**Default:** `true`  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE`
+
+When enabled, restricts agent file and command access to the workspace directory only.
+
+**Protected tools:**
+- `read_file` - Only files within workspace
+- `write_file` - Only files within workspace
+- `list_dir` - Only directories within workspace
+- `edit_file` - Only files within workspace
+- `append_file` - Only files within workspace
+- `exec` - Command paths must be within workspace
+
+**Security example:**
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "restrict_to_workspace": true
+    }
+  }
+}
+```
+
+With this enabled, the agent **cannot** access `/etc/passwd` or any files outside the workspace.
+
+<Warning>
+  Setting `restrict_to_workspace: false` allows the agent to access any path on your system. Only use this in controlled environments.
+</Warning>
+
+### allow_read_outside_workspace
+
+**Type:** `boolean`  
+**Default:** `false`  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_ALLOW_READ_OUTSIDE_WORKSPACE`
+
+When enabled (and `restrict_to_workspace` is true), allows read-only access outside the workspace but still restricts writes and execution.
+
+### model_name
+
+**Type:** `string`  
+**Default:** `""` (uses first configured model)  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME`
+
+The model to use for agent operations. Must match a `model_name` from your `model_list` configuration.
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model_name": "claude-sonnet-4.6"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-..."
+    }
+  ]
+}
+```
+
+### max_tokens
+
+**Type:** `integer`  
+**Default:** `32768`  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS`
+
+Maximum number of tokens the model can generate in a single response.
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "max_tokens": 8192
+    }
+  }
+}
+```
+
+<Note>
+  Different models have different context limits. GPT-5.2 supports 128K tokens, while some models are limited to 8K.
+</Note>
+
+### temperature
+
+**Type:** `float` (0.0 - 2.0)  
+**Default:** `null` (uses provider default, typically 0.7)  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE`
+
+Controls randomness in model responses:
+
+- `0.0` - Deterministic, focused responses
+- `0.7` - Balanced creativity and focus (recommended)
+- `1.0` - More creative and varied
+- `2.0` - Highly random and creative
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "temperature": 0.7
+    }
+  }
+}
+```
+
+### max_tool_iterations
+
+**Type:** `integer`  
+**Default:** `50`  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS`
+
+Maximum number of tool calls the agent can make in a single conversation turn.
+
+This prevents infinite loops and controls execution cost:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "max_tool_iterations": 20
+    }
+  }
+}
+```
+
+If the agent reaches this limit, it will respond with current progress and stop.
+
+### max_media_size
+
+**Type:** `integer` (bytes)  
+**Default:** `20971520` (20 MB)  
+**Environment:** `PICOCLAW_AGENTS_DEFAULTS_MAX_MEDIA_SIZE`
+
+Maximum size for uploaded media files (images, audio, documents).
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "max_media_size": 10485760  // 10 MB
+    }
+  }
+}
+```
+
+## Model Fallbacks
+
+You can configure fallback models that PicoClaw will try if the primary model fails:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model_name": "gpt4",
+      "model_fallbacks": ["claude-sonnet-4.6", "gemini-2.0-flash"]
+    }
+  }
+}
+```
+
+PicoClaw will:
+1. Try `gpt4` first
+2. If it fails, try `claude-sonnet-4.6`
+3. If that fails, try `gemini-2.0-flash`
+4. If all fail, return an error
+
+## Image Model Configuration
+
+Configure a separate model for vision/image tasks:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model_name": "gpt4",
+      "image_model": "gpt-5.2-vision",
+      "image_model_fallbacks": ["claude-opus-4.5"]
+    }
+  }
+}
+```
+
+## Security Best Practices
+
+1. **Keep workspace restrictions enabled** in production
+2. **Set appropriate max_tool_iterations** to prevent runaway costs
+3. **Use dedicated workspaces** for different use cases
+4. **Limit max_media_size** to prevent abuse
+
+## Environment Variable Examples
+
+```bash
+# Override model
+PICOCLAW_AGENTS_DEFAULTS_MODEL_NAME=claude-sonnet-4.6 picoclaw agent
+
+# Increase token limit
+PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS=16384 picoclaw agent
+
+# Disable workspace restrictions (not recommended)
+PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE=false picoclaw agent
+
+# Set custom workspace
+PICOCLAW_AGENTS_DEFAULTS_WORKSPACE=/custom/workspace picoclaw agent
+```
+
+## Next Steps
+
+- [Configure Models](/configuration/models)
+- [Set Up Workspace](/configuration/workspace)
+- [Configure Tools](/configuration/tools)

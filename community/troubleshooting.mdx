@@ -1,0 +1,531 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for PicoClaw
+icon: wrench
+---
+
+## Web Search Issues
+
+### "API key configuration issue" Error
+
+<Info>
+This is normal if you haven't configured a search API key yet. PicoClaw will provide helpful links for manual searching.
+</Info>
+
+**Solution**: Enable web search by configuring an API key:
+
+<Tabs>
+  <Tab title="Option 1: Brave Search (Recommended)">
+    Get a free API key at [https://brave.com/search/api](https://brave.com/search/api)
+    
+    **Benefits**:
+    - 2000 free queries/month
+    - Best results for AI applications
+    - No credit card required for free tier
+
+    ```json
+    {
+      "tools": {
+        "web": {
+          "brave": {
+            "enabled": true,
+            "api_key": "YOUR_BRAVE_API_KEY",
+            "max_results": 5
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Option 2: Tavily">
+    Get a free API key at [https://tavily.com](https://tavily.com)
+    
+    **Benefits**:
+    - 1000 free queries/month
+    - Optimized for AI agents
+
+    ```json
+    {
+      "tools": {
+        "web": {
+          "tavily": {
+            "enabled": true,
+            "api_key": "YOUR_TAVILY_API_KEY",
+            "max_results": 5
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Option 3: DuckDuckGo (No Key Required)">
+    DuckDuckGo is automatically enabled as a fallback if no API key is configured.
+    
+    **Note**: Results may be less comprehensive than Brave or Tavily.
+
+    ```json
+    {
+      "tools": {
+        "web": {
+          "duckduckgo": {
+            "enabled": true,
+            "max_results": 5
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Provider Issues
+
+### Content Filtering Errors
+
+<Warning>
+Some providers (like Zhipu) have content filtering that may block certain queries.
+</Warning>
+
+**Solutions**:
+1. Rephrase your query to avoid triggering filters
+2. Switch to a different model/provider
+3. Use OpenRouter to access multiple providers
+
+**Example config with fallback models**:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "primary-model",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-key"
+    },
+    {
+      "model_name": "fallback-model",
+      "model": "openai/gpt-4",
+      "api_key": "your-openai-key"
+    }
+  ]
+}
+```
+
+### Request Timeout Issues
+
+**Problem**: Requests timing out with slow providers
+
+**Solution**: Increase the timeout in your model configuration:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "slow-model",
+      "model": "provider/model-name",
+      "api_key": "your-key",
+      "request_timeout": 300
+    }
+  ]
+}
+```
+
+<Note>
+`request_timeout` is in seconds. Default is 120s if omitted or set to `<= 0`.
+</Note>
+
+---
+
+## Channel Issues
+
+### Telegram: "Conflict: terminated by other getUpdates"
+
+<Warning>
+This happens when another instance of the bot is running.
+</Warning>
+
+**Solution**:
+1. Stop all running `picoclaw gateway` instances:
+   ```bash
+   pkill picoclaw
+   ```
+2. Start only one instance:
+   ```bash
+   picoclaw gateway
+   ```
+
+### Discord: Bot Not Responding
+
+**Common Causes**:
+
+<AccordionGroup>
+  <Accordion title="Message Content Intent Not Enabled">
+    **Solution**: Go to Discord Developer Portal → Your App → Bot → Enable **MESSAGE CONTENT INTENT**
+  </Accordion>
+  
+  <Accordion title="Incorrect User ID in allow_from">
+    **Solution**: 
+    1. Enable Developer Mode in Discord (Settings → Advanced → Developer Mode)
+    2. Right-click your avatar → Copy User ID
+    3. Add to config:
+    ```json
+    {
+      "channels": {
+        "discord": {
+          "allow_from": ["YOUR_USER_ID"]
+        }
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Bot Missing Permissions">
+    **Solution**: When inviting the bot, ensure these permissions are selected:
+    - Send Messages
+    - Read Message History
+    - View Channels
+  </Accordion>
+</AccordionGroup>
+
+### WhatsApp: QR Code Not Appearing
+
+**Prerequisites**:
+- Must build with WhatsApp support: `make build-whatsapp-native`
+- Or use the WhatsApp-enabled binary
+
+**Debug Steps**:
+
+```bash
+# Check if native WhatsApp is enabled
+picoclaw gateway
+# Look for "Starting WhatsApp native channel" in logs
+```
+
+**Config**:
+
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "use_native": true,
+      "session_store_path": "",
+      "allow_from": []
+    }
+  }
+}
+```
+
+### LINE/WeCom: Webhook Not Receiving Messages
+
+<Info>
+All webhook-based channels use the shared Gateway HTTP server.
+</Info>
+
+**Default Gateway Settings**:
+- Host: `127.0.0.1`
+- Port: `18790`
+
+**For Production Deployment**:
+
+1. **Use a reverse proxy** (nginx, caddy) for HTTPS
+2. **Or use a tunnel** (ngrok, cloudflare tunnel):
+
+```bash
+# Example with ngrok
+ngrok http 18790
+```
+
+3. **Configure webhook URL** in LINE/WeCom console:
+   - LINE: `https://your-domain/webhook/line`
+   - WeCom: `https://your-domain/webhook/wecom`
+   - WeCom App: `https://your-domain/webhook/wecom-app`
+   - WeCom AI Bot: `https://your-domain/webhook/wecom-aibot`
+
+<Warning>
+For Docker users: Set `PICOCLAW_GATEWAY_HOST=0.0.0.0` to allow external connections.
+</Warning>
+
+---
+
+## Installation Issues
+
+### Build Fails on Raspberry Pi Zero 2 W
+
+**Problem**: Wrong architecture binary
+
+<Tabs>
+  <Tab title="32-bit Raspberry Pi OS">
+    ```bash
+    make build-linux-arm
+    # Binary: build/picoclaw-linux-arm
+    ```
+  </Tab>
+  
+  <Tab title="64-bit Raspberry Pi OS">
+    ```bash
+    make build-linux-arm64
+    # Binary: build/picoclaw-linux-arm64
+    ```
+  </Tab>
+  
+  <Tab title="Not Sure? Build Both">
+    ```bash
+    make build-pi-zero
+    ```
+  </Tab>
+</Tabs>
+
+### Android/Termux: "No such file or directory"
+
+**Solution**: Use `proot` environment:
+
+```bash
+pkg install proot
+termux-chroot ./picoclaw-linux-arm64 onboard
+```
+
+**For Termux persistent installation**:
+
+```bash
+# Move binary to Termux bin
+mv picoclaw-linux-arm64 $PREFIX/bin/picoclaw
+chmod +x $PREFIX/bin/picoclaw
+
+# Run from anywhere
+picoclaw gateway
+```
+
+---
+
+## Configuration Issues
+
+### Config File Not Found
+
+**Default location**: `~/.picoclaw/config.json`
+
+**Solution**: Initialize configuration:
+
+```bash
+picoclaw onboard
+```
+
+**Custom config location**:
+
+```bash
+export PICOCLAW_CONFIG=/path/to/config.json
+picoclaw gateway
+```
+
+### Workspace Path Issues
+
+<AccordionGroup>
+  <Accordion title="Custom Workspace Location">
+    **Option 1: Via config file**
+    ```json
+    {
+      "agents": {
+        "defaults": {
+          "workspace": "/custom/path/workspace"
+        }
+      }
+    }
+    ```
+    
+    **Option 2: Via environment variable**
+    ```bash
+    export PICOCLAW_HOME=/custom/path
+    picoclaw gateway
+    # Workspace will be at /custom/path/workspace
+    ```
+  </Accordion>
+  
+  <Accordion title="Permission Denied Errors">
+    Ensure the workspace directory has proper permissions:
+    ```bash
+    mkdir -p ~/.picoclaw/workspace
+    chmod 755 ~/.picoclaw/workspace
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Performance Issues
+
+### High Memory Usage
+
+<Note>
+Recent versions (with many merged PRs) may use 10-20MB instead of the target &lt;10MB. Memory optimization is prioritized in the roadmap.
+</Note>
+
+**Temporary Solutions**:
+1. Disable unused channels in config
+2. Reduce `max_tool_iterations` in agent defaults
+3. Use smaller models (e.g., `glm-4-flash` instead of `glm-4.7`)
+
+### Slow Response Times
+
+**Common Causes**:
+
+<Steps>
+  <Step title="Check Model Performance">
+    Some models are slower than others. Try switching to a faster model:
+    - Groq: Ultra-fast inference
+    - Cerebras: Fast inference
+    - Local Ollama: Fast but requires local resources
+  </Step>
+  
+  <Step title="Check Network Latency">
+    For cloud providers, network latency matters:
+    ```bash
+    # Test API latency
+    curl -w "@curl-format.txt" -o /dev/null -s https://api.provider.com/v1/models
+    ```
+  </Step>
+  
+  <Step title="Reduce Tool Iterations">
+    ```json
+    {
+      "agents": {
+        "defaults": {
+          "max_tool_iterations": 10
+        }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Security Issues
+
+### Agent Accessing Files Outside Workspace
+
+<Warning>
+By default, `restrict_to_workspace` is set to `true` for security.
+</Warning>
+
+**If you need broader access** (use with caution):
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "restrict_to_workspace": false
+    }
+  }
+}
+```
+
+**Or via environment variable**:
+
+```bash
+export PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE=false
+```
+
+<Tip>
+Even with restrictions disabled, dangerous commands (rm -rf, format, etc.) are still blocked.
+</Tip>
+
+---
+
+## Docker Issues
+
+### Container Exits Immediately
+
+**Cause**: First run generates config then exits
+
+**Solution**: This is expected behavior
+
+```bash
+# 1. First run - generates config
+docker compose -f docker/docker-compose.yml --profile gateway up
+# Container prints "First-run setup complete." and stops
+
+# 2. Edit config
+vim docker/data/config.json
+
+# 3. Start normally
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+### Health Endpoints Not Accessible
+
+**Problem**: Gateway listens on `127.0.0.1` by default
+
+**Solution**: Set host to `0.0.0.0`:
+
+```bash
+export PICOCLAW_GATEWAY_HOST=0.0.0.0
+docker compose -f docker/docker-compose.yml --profile gateway up -d
+```
+
+---
+
+## Debug Tips
+
+### Enable Verbose Logging
+
+```bash
+# Set log level to debug
+export PICOCLAW_LOG_LEVEL=debug
+picoclaw gateway
+```
+
+### Check Configuration
+
+```bash
+# Validate config syntax
+cat ~/.picoclaw/config.json | jq .
+
+# Check for common issues
+picoclaw status
+```
+
+### Test Provider Connection
+
+```bash
+# Quick test with agent mode
+picoclaw agent -m "Hello, test message"
+```
+
+### Monitor Resource Usage
+
+```bash
+# Linux
+top -p $(pgrep picoclaw)
+
+# macOS
+top -pid $(pgrep picoclaw)
+
+# Detailed memory analysis
+ps aux | grep picoclaw
+```
+
+---
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/sipeed/picoclaw/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="GitHub Discussions" icon="comments" href="https://github.com/sipeed/picoclaw/discussions">
+    Ask questions and share ideas
+  </Card>
+  <Card title="Discord" icon="discord" href="https://discord.gg/V4sAZ9XWpN">
+    Join the community chat
+  </Card>
+  <Card title="Documentation" icon="book" href="/introduction">
+    Read the full documentation
+  </Card>
+</CardGroup>
+
+<Tip>
+Before opening an issue, search existing issues to see if your problem has already been reported or solved.
+</Tip>

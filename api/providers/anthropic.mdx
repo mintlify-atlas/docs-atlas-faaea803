@@ -1,0 +1,283 @@
+---
+title: Anthropic Provider
+description: Configure and use Anthropic Claude models with PicoClaw
+---
+
+## Overview
+
+The Anthropic provider enables access to Claude models from Anthropic. PicoClaw uses the native Anthropic API protocol for optimal compatibility and performance.
+
+## Configuration
+
+### Model List Format
+
+Add Anthropic models to your `model_list` configuration:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-your-key",
+      "api_base": "https://api.anthropic.com/v1",
+      "request_timeout": 300
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "claude-sonnet-4.6"
+    }
+  }
+}
+```
+
+### Configuration Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `model_name` | string | Yes | - | Alias for this model configuration |
+| `model` | string | Yes | - | Model identifier with `anthropic/` prefix |
+| `api_key` | string | Yes* | - | Your Anthropic API key (or use OAuth) |
+| `api_base` | string | No | `https://api.anthropic.com/v1` | API endpoint URL |
+| `request_timeout` | integer | No | 120 | Request timeout in seconds |
+
+*Required unless using OAuth authentication
+
+## Available Models
+
+Anthropic provides several Claude model families:
+
+### Claude 4 Series (Latest)
+- `anthropic/claude-opus-4` - Most capable, best for complex tasks
+- `anthropic/claude-sonnet-4.6` - Balanced performance and speed
+- `anthropic/claude-haiku-4` - Fast and efficient
+
+### Claude 3.5 Series
+- `anthropic/claude-opus-3.5` - Previous generation flagship
+- `anthropic/claude-sonnet-3.5` - Previous generation balanced model
+
+### Claude 3 Series
+- `anthropic/claude-opus-3` - Legacy flagship model
+- `anthropic/claude-sonnet-3` - Legacy balanced model
+- `anthropic/claude-haiku-3` - Legacy fast model
+
+<Note>
+Claude models support extended context windows. Opus and Sonnet models support up to 200K tokens.
+</Note>
+
+## Setup Instructions
+
+### 1. Get API Key
+
+1. Visit [Anthropic Console](https://console.anthropic.com)
+2. Sign in or create an account
+3. Navigate to **API Keys** section
+4. Click **Create Key**
+5. Copy your API key (starts with `sk-ant-`)
+
+### 2. Configure PicoClaw
+
+Edit `~/.picoclaw/config.json`:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "claude",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-your-actual-key-here"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model_name": "claude",
+      "max_tokens": 8192,
+      "temperature": 0.7
+    }
+  }
+}
+```
+
+### 3. Test Connection
+
+```bash
+picoclaw agent -m "Hello Claude, test my connection"
+```
+
+## Advanced Configuration
+
+### Custom API Endpoint
+
+Use a custom Anthropic-compatible endpoint:
+
+```json
+{
+  "model_name": "claude-proxy",
+  "model": "anthropic/claude-sonnet-4.6",
+  "api_base": "https://my-proxy.com/v1",
+  "api_key": "sk-ant-...",
+  "request_timeout": 300
+}
+```
+
+### Prompt Caching
+
+Claude supports prompt caching to reduce costs for repeated prompts. PicoClaw automatically uses cache control for system messages:
+
+```json
+{
+  "model_name": "claude",
+  "model": "anthropic/claude-sonnet-4.6",
+  "api_key": "sk-ant-..."
+}
+```
+
+Cache control is automatically applied to:
+- System prompts
+- Tool definitions
+- Large context blocks
+
+### Extended Context
+
+Claude models support large context windows:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model_name": "claude",
+      "max_tokens": 8192
+    }
+  }
+}
+```
+
+Context limits by model:
+- Opus: 200K tokens
+- Sonnet: 200K tokens  
+- Haiku: 200K tokens
+
+## Authentication Methods
+
+### API Key (Recommended)
+
+Standard API key authentication:
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "claude",
+      "model": "anthropic/claude-sonnet-4.6",
+      "api_key": "sk-ant-your-key"
+    }
+  ]
+}
+```
+
+### OAuth / Token (Advanced)
+
+For OAuth-based authentication:
+
+```json
+{
+  "providers": {
+    "anthropic": {
+      "auth_method": "oauth",
+      "api_base": "https://api.anthropic.com/v1"
+    }
+  }
+}
+```
+
+Then authenticate:
+
+```bash
+picoclaw auth login --provider anthropic
+```
+
+Paste your API token when prompted.
+
+## Troubleshooting
+
+### Rate Limiting
+
+If you encounter rate limits:
+- Check your plan's rate limits in the Anthropic Console
+- Implement request throttling
+- Upgrade your plan for higher limits
+
+### Invalid API Key
+
+Error: `401 Authentication failed`
+- Verify your API key is correct
+- Ensure key starts with `sk-ant-`
+- Check key hasn't been revoked in Console
+
+### Content Filtering
+
+Some providers (like when using Claude through proxies) have content filtering:
+- Rephrase your query
+- Use different wording
+- Contact Anthropic support if false positives occur
+
+### Timeout Errors
+
+Increase timeout for long-running requests:
+
+```json
+{
+  "model_name": "claude",
+  "model": "anthropic/claude-sonnet-4.6",
+  "api_key": "sk-ant-...",
+  "request_timeout": 600
+}
+```
+
+## Model Selection Guide
+
+| Use Case | Recommended Model | Notes |
+|----------|-------------------|-------|
+| Complex analysis | `claude-opus-4` | Best reasoning capabilities |
+| General tasks | `claude-sonnet-4.6` | Best balance of speed and quality |
+| Fast responses | `claude-haiku-4` | Optimized for speed |
+| Large documents | `claude-sonnet-4.6` | 200K context window |
+| Cost-sensitive | `claude-haiku-4` | Most economical option |
+
+## Cost Optimization
+
+1. **Choose appropriate models**: Use Haiku for simple tasks, Sonnet for general use, Opus only when needed
+2. **Enable prompt caching**: Automatically enabled for system prompts (75% cost reduction)
+3. **Set `max_tokens`**: Limit response length to reduce costs
+4. **Monitor usage**: Check Anthropic Console regularly
+5. **Use extended context wisely**: Only include necessary context
+
+## Legacy Configuration (Deprecated)
+
+Older configuration format (still supported):
+
+```json
+{
+  "providers": {
+    "anthropic": {
+      "api_key": "sk-ant-your-key",
+      "api_base": "https://api.anthropic.com/v1"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4.6"
+    }
+  }
+}
+```
+
+**Migrate to `model_list` format** for better features like load balancing and fallbacks.
+
+## Related Documentation
+
+- [Model List Configuration](/configuration/model-list)
+- [Agent Configuration](/configuration/agents)
+- [Prompt Caching](/guides/prompt-caching)

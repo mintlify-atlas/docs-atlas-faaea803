@@ -1,0 +1,181 @@
+---
+title: 'picoclaw agent'
+description: 'Interact with the AI agent directly via command line'
+---
+
+## Overview
+
+The `agent` command provides direct interaction with the PicoClaw AI agent. It supports both interactive chat mode and single-message mode, allowing you to have conversations with the AI or send one-off commands.
+
+## Usage
+
+```bash
+picoclaw agent [flags]
+```
+
+## Flags
+
+<ParamField path="-m, --message" type="string">
+  Send a single message in non-interactive mode. When provided, the agent processes the message and returns the response without entering interactive mode.
+  
+  ```bash
+  picoclaw agent -m "Hello!"
+  ```
+</ParamField>
+
+<ParamField path="-s, --session" type="string" default="cli:default">
+  Session key for maintaining conversation context. Use different session keys to maintain separate conversation histories.
+  
+  ```bash
+  picoclaw agent -s "cli:project-x" -m "Continue our discussion"
+  ```
+</ParamField>
+
+<ParamField path="--model" type="string">
+  Override the default model specified in config. Allows you to use a specific model for this interaction.
+  
+  ```bash
+  picoclaw agent --model "gpt-5.2" -m "Explain quantum computing"
+  ```
+</ParamField>
+
+<ParamField path="-d, --debug" type="boolean" default="false">
+  Enable debug logging to see detailed information about the agent's operation, including tool usage and internal processing.
+  
+  ```bash
+  picoclaw agent -d -m "Debug this issue"
+  ```
+</ParamField>
+
+## Interactive Mode
+
+When run without the `-m` flag, the agent enters interactive mode:
+
+```bash
+picoclaw agent
+```
+
+**Output:**
+```
+🤖 Interactive mode (Ctrl+C to exit)
+
+🤖 You: 
+```
+
+In interactive mode:
+- Type your message and press Enter to send
+- The agent maintains conversation context within the session
+- Command history is saved (use Up/Down arrows to navigate)
+- Type `exit` or `quit` to leave interactive mode
+- Press Ctrl+C to exit immediately
+
+## Non-Interactive Mode
+
+Send a single message and receive a response:
+
+```bash
+picoclaw agent -m "What files are in the current directory?"
+```
+
+**Output:**
+```
+🤖 The current directory contains:
+- config.yaml
+- README.md
+- src/
+...
+```
+
+## Examples
+
+### Basic Chat
+
+```bash
+picoclaw agent -m "Hello, how can you help me?"
+```
+
+### Using a Different Session
+
+Maintain separate conversation contexts:
+
+```bash
+# Session for work project
+picoclaw agent -s "work:api-refactor" -m "Continue refactoring the API"
+
+# Session for personal project
+picoclaw agent -s "personal:blog" -m "Help me write a blog post"
+```
+
+### Override Model
+
+```bash
+picoclaw agent --model "claude-sonnet-4.6" -m "Write a complex algorithm"
+```
+
+### Debug Mode
+
+See what's happening under the hood:
+
+```bash
+picoclaw agent -d -m "Analyze this codebase"
+```
+
+**Output:**
+```
+🔍 Debug mode enabled
+🤖 Agent initialized
+  • Tools: 15 loaded
+  • Skills: 8/10 available
+
+[Debug logs showing tool usage...]
+
+🤖 I've analyzed the codebase...
+```
+
+### Interactive Session with Custom Model
+
+```bash
+picoclaw agent --model "gpt-5.2" -s "code-review:main"
+```
+
+## Tips
+
+- **Session Management**: Use descriptive session keys to organize different conversation threads
+- **Model Selection**: Choose models based on task complexity and speed requirements
+- **Debug Mode**: Enable debug mode when troubleshooting or understanding agent behavior
+- **History**: In interactive mode, command history is preserved in `/tmp/.picoclaw_history`
+- **Long Conversations**: The agent maintains context within a session, so you can refer to previous messages
+
+## Common Use Cases
+
+1. **Quick Queries**: Use non-interactive mode for one-off questions
+   ```bash
+   picoclaw agent -m "What's the current git status?"
+   ```
+
+2. **Extended Conversations**: Use interactive mode for back-and-forth dialogue
+   ```bash
+   picoclaw agent
+   ```
+
+3. **Task-Specific Sessions**: Create dedicated sessions for different projects
+   ```bash
+   picoclaw agent -s "frontend:refactor"
+   ```
+
+4. **Model Experimentation**: Try different models for comparison
+   ```bash
+   picoclaw agent --model "claude-sonnet-4.6" -m "Explain this concept"
+   picoclaw agent --model "gpt-5.2" -m "Explain this concept"
+   ```
+
+## Exit Codes
+
+- `0`: Success
+- `1`: Error (configuration issue, provider error, or processing failure)
+
+## See Also
+
+- [picoclaw gateway](/commands/gateway) - Start the gateway server for channel integrations
+- [picoclaw status](/commands/status) - Check configuration and authentication status
+- [Configuration](/configuration) - Configure models and providers

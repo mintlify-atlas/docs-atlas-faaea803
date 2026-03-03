@@ -1,0 +1,495 @@
+---
+title: Model Context Protocol (MCP)
+description: Integrate external tools via Model Context Protocol
+---
+
+PicoClaw supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), allowing you to extend the agent with external tools and services. MCP provides a standardized way to connect AI assistants with external data sources and tools.
+
+## Overview
+
+MCP enables PicoClaw to:
+
+- Connect to external MCP servers
+- Use tools provided by MCP servers
+- Access external data sources and APIs
+- Integrate with third-party services
+
+### How MCP Works
+
+```
+PicoClaw Agent
+    ↓
+    ↓ (calls mcp_tool)
+    ↓
+MCP Manager
+    ↓
+    ↓ (forwards request)
+    ↓
+MCP Server (external)
+    ↓
+    ↓ (executes tool)
+    ↓
+External Service/API
+```
+
+## Configuration
+
+Add MCP server configuration to `~/.picoclaw/config.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/files"],
+        "enabled": true
+      },
+      "github": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_TOKEN": "ghp_your_token_here"
+        },
+        "enabled": true
+      },
+      "postgres": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
+        "enabled": false
+      }
+    }
+  }
+}
+```
+
+### Server Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `command` | string | Yes | Command to execute MCP server |
+| `args` | array | No | Arguments for the command |
+| `env` | object | No | Environment variables for the server |
+| `enabled` | boolean | No | Enable/disable the server (default: true) |
+
+## Available MCP Servers
+
+MCP has a growing ecosystem of official and community servers:
+
+### Official Servers
+
+#### Filesystem
+Read and manipulate local files.
+
+```json
+{
+  "filesystem": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"],
+    "enabled": true
+  }
+}
+```
+
+#### GitHub
+Interact with GitHub repositories, issues, and PRs.
+
+```json
+{
+  "github": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": {
+      "GITHUB_TOKEN": "ghp_..."
+    },
+    "enabled": true
+  }
+}
+```
+
+#### PostgreSQL
+Query and manage PostgreSQL databases.
+
+```json
+{
+  "postgres": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/db"],
+    "enabled": true
+  }
+}
+```
+
+#### Google Drive
+Access Google Drive files.
+
+```json
+{
+  "gdrive": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-gdrive"],
+    "env": {
+      "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/credentials.json"
+    },
+    "enabled": true
+  }
+}
+```
+
+#### Slack
+Interact with Slack workspaces.
+
+```json
+{
+  "slack": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-slack"],
+    "env": {
+      "SLACK_BOT_TOKEN": "xoxb-..."
+    },
+    "enabled": true
+  }
+}
+```
+
+### Finding More Servers
+
+Browse available MCP servers:
+- [Official MCP Registry](https://github.com/modelcontextprotocol/servers)
+- [MCP Community Servers](https://github.com/topics/mcp-server)
+- [npm: @modelcontextprotocol](https://www.npmjs.com/search?q=%40modelcontextprotocol)
+
+## Using MCP Tools
+
+Once MCP servers are configured, their tools are automatically available to the agent.
+
+### Tool Discovery
+
+The agent sees MCP tools with the `mcp_` prefix:
+
+```
+Available tools:
+- mcp_filesystem_read_file
+- mcp_filesystem_write_file  
+- mcp_github_create_issue
+- mcp_github_list_repos
+- mcp_postgres_query
+```
+
+### Tool Naming Convention
+
+MCP tools are named:
+```
+mcp_{server}_{tool}
+```
+
+Examples:
+- `mcp_github_create_issue` - GitHub server's "create_issue" tool
+- `mcp_filesystem_read_file` - Filesystem server's "read_file" tool
+- `mcp_postgres_query` - Postgres server's "query" tool
+
+### Name Sanitization
+
+Tool names are sanitized for compatibility:
+- Converted to lowercase
+- Special characters replaced with underscores
+- Limited to 64 characters (OpenAI API limit)
+- Hash appended if sanitization is lossy
+
+Examples:
+- `My-Tool!` → `my_tool`
+- `Very Long Tool Name With Spaces` → `very_long_tool_name_with_spaces`
+- `Tool@#$%Name` → `tool_name_12ab34cd` (hash appended)
+
+### Automatic Usage
+
+The agent uses MCP tools automatically:
+
+**Example 1: GitHub Integration**
+```bash
+User: "Create a GitHub issue for the bug we just found"
+
+Agent: [calls mcp_github_create_issue with appropriate parameters]
+
+Result: "Created issue #123: Fix web search timeout"
+```
+
+**Example 2: Database Query**
+```bash
+User: "How many users signed up today?"
+
+Agent: [calls mcp_postgres_query with SQL]
+
+Result: "42 users signed up today"
+```
+
+## Implementation Details
+
+### MCPTool Wrapper
+
+Each MCP tool is wrapped to implement PicoClaw's `Tool` interface:
+
+```go
+type MCPTool struct {
+    manager    MCPManager
+    serverName string
+    tool       *mcp.Tool
+}
+
+func (t *MCPTool) Name() string
+func (t *MCPTool) Description() string  
+func (t *MCPTool) Parameters() map[string]any
+func (t *MCPTool) Execute(ctx context.Context, args map[string]any) *ToolResult
+```
+
+### Tool Execution Flow
+
+1. Agent calls MCP tool via name (e.g., `mcp_github_create_issue`)
+2. MCPTool wrapper forwards to MCP Manager
+3. MCP Manager communicates with external server
+4. Server executes tool and returns result
+5. Result wrapped in ToolResult and returned to agent
+
+### Error Handling
+
+MCP tool errors are properly handled:
+
+```go
+if result.IsError {
+    return ErrorResult(fmt.Sprintf("MCP tool returned error: %s", errMsg))
+}
+```
+
+Errors include:
+- Connection failures
+- Server not responding
+- Tool execution errors
+- Invalid parameters
+
+### Content Types
+
+MCP tools can return different content types:
+
+- **Text**: Plain text responses
+- **Images**: Image data with MIME type
+- **Other**: Custom content types
+
+Example handling:
+```go
+switch v := content.(type) {
+case *mcp.TextContent:
+    return v.Text
+case *mcp.ImageContent:
+    return fmt.Sprintf("[Image: %s]", v.MIMEType)
+default:
+    return fmt.Sprintf("[Content: %T]", v)
+}
+```
+
+## Security Considerations
+
+### Server Trust
+
+Only configure MCP servers from trusted sources:
+- Official MCP servers from Model Context Protocol
+- Well-maintained community servers
+- Servers you've audited yourself
+
+### Credential Management
+
+**Never commit credentials to config files:**
+
+❌ **Bad:**
+```json
+{
+  "github": {
+    "env": {
+      "GITHUB_TOKEN": "ghp_actual_token_here"
+    }
+  }
+}
+```
+
+✅ **Good:**
+```json
+{
+  "github": {
+    "env": {
+      "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+    }
+  }
+}
+```
+
+Then set environment variable:
+```bash
+export GITHUB_TOKEN=ghp_your_token
+picoclaw gateway
+```
+
+### Workspace Restrictions
+
+MCP tools respect PicoClaw's workspace restrictions:
+
+- If `restrict_to_workspace: true`, tools are sandboxed
+- External servers may have their own access controls
+- Review server permissions before enabling
+
+## Creating Custom MCP Servers
+
+You can create custom MCP servers for your specific needs.
+
+### Example: Custom Weather Server
+
+```javascript
+#!/usr/bin/env node
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+const server = new Server(
+  {
+    name: "weather-server",
+    version: "1.0.0"
+  },
+  {
+    capabilities: {
+      tools: {}
+    }
+  }
+);
+
+server.setRequestHandler("tools/list", async () => {
+  return {
+    tools: [
+      {
+        name: "get_weather",
+        description: "Get current weather for a location",
+        inputSchema: {
+          type: "object",
+          properties: {
+            location: {
+              type: "string",
+              description: "City name or coordinates"
+            }
+          },
+          required: ["location"]
+        }
+      }
+    ]
+  };
+});
+
+server.setRequestHandler("tools/call", async (request) => {
+  if (request.params.name === "get_weather") {
+    const location = request.params.arguments.location;
+    // Fetch weather data...
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Weather in ${location}: Sunny, 72°F`
+        }
+      ]
+    };
+  }
+  throw new Error("Unknown tool");
+});
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+### Register Custom Server
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "weather": {
+        "command": "node",
+        "args": ["/path/to/weather-server.js"],
+        "enabled": true
+      }
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### Server Not Starting
+
+1. **Check command is available:**
+```bash
+which npx
+node --version
+```
+
+2. **Test server manually:**
+```bash
+npx -y @modelcontextprotocol/server-github
+```
+
+3. **Check logs:**
+```bash
+picoclaw gateway 2>&1 | grep mcp
+```
+
+### Tools Not Appearing
+
+1. **Verify server is enabled:**
+```json
+{
+  "enabled": true
+}
+```
+
+2. **Check server configuration:**
+   - Command path correct
+   - Arguments properly formatted
+   - Environment variables set
+
+3. **Restart gateway:**
+```bash
+picoclaw gateway
+```
+
+### Authentication Errors
+
+1. **Verify credentials:**
+   - API tokens are valid
+   - Environment variables are set
+   - Credentials have necessary permissions
+
+2. **Check token format:**
+   - GitHub: `ghp_...`
+   - Slack: `xoxb-...`
+
+### Tool Execution Fails
+
+1. **Check tool parameters:**
+   - Review required parameters
+   - Verify parameter types
+   - Check parameter constraints
+
+2. **Test tool independently:**
+   - Use MCP inspector/debugger
+   - Call tool directly from server
+
+## MCP Resources
+
+### Documentation
+- [MCP Specification](https://spec.modelcontextprotocol.io)
+- [MCP SDK Documentation](https://github.com/modelcontextprotocol/sdk)
+- [MCP Server Examples](https://github.com/modelcontextprotocol/servers)
+
+### Tools & Utilities
+- [MCP Inspector](https://github.com/modelcontextprotocol/inspector) - Debug MCP servers
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+
+## Related Features
+
+- [Skills System](/features/skills) - Custom instruction sets
+- [Web Search](/features/web-search) - Built-in web search providers
+- [Tools Reference](/tools/overview) - All available tools

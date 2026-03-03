@@ -1,0 +1,451 @@
+---
+title: Spawn Tool
+description: Spawn subagents to handle tasks in parallel
+---
+
+The `spawn` tool allows agents to delegate complex or time-consuming tasks to subagents that run independently in the background.
+
+## spawn
+
+Spawn a subagent to handle a task in the background.
+
+### Parameters
+
+<ParamField path="task" type="string" required>
+  The task for the subagent to complete. This should be a clear, self-contained description of what needs to be done.
+</ParamField>
+
+<ParamField path="label" type="string">
+  Optional short label for the task (for display purposes). Helps identify the subagent in logs and status updates.
+</ParamField>
+
+<ParamField path="agent_id" type="string">
+  Optional target agent ID to delegate the task to. If specified, the task is routed to a specific configured agent.
+</ParamField>
+
+### Returns
+
+<ResponseField name="result" type="AsyncResult">
+  Asynchronous result indicating the subagent has been spawned. The subagent will complete the task independently and report back when done.
+  
+  Format: `"Spawned subagent: {label} (id: {subagent_id})"`
+</ResponseField>
+
+### Usage Example
+
+```json
+{
+  "tool": "spawn",
+  "parameters": {
+    "task": "Analyze the last 1000 log entries and identify error patterns",
+    "label": "Log Analysis"
+  }
+}
+```
+
+**Result:**
+```json
+{
+  "type": "async",
+  "message": "Spawned subagent: Log Analysis (id: sub-abc123)"
+}
+```
+
+---
+
+## Subagent Lifecycle
+
+### 1. Spawn
+
+Parent agent calls the spawn tool:
+
+```json
+{
+  "tool": "spawn",
+  "parameters": {
+    "task": "Fetch weather data for next 7 days and generate summary",
+    "label": "Weather Forecast"
+  }
+}
+```
+
+### 2. Background Execution
+
+Subagent runs independently:
+- Has own conversation context
+- Access to all configured tools
+- Can spawn additional subagents if needed
+- Executes until task completion
+
+### 3. Completion Callback
+
+When the subagent completes, the parent agent receives a notification:
+
+```go
+type AsyncCallback func(result string)
+
+spawnTool.SetCallback(func(result string) {
+    // Handle subagent completion
+    log.Printf("Subagent completed: %s", result)
+})
+```
+
+---
+
+## Context Management
+
+Subagents inherit context from the parent agent:
+
+```go
+spawnTool.SetContext("telegram", "123456789")
+```
+
+This ensures:
+- Subagent messages are routed to the correct channel
+- Output reaches the original user
+- Multi-user environments maintain proper isolation
+
+---
+
+## Agent Targeting
+
+Route tasks to specific agents using `agent_id`:
+
+```json
+{
+  "task": "Debug the authentication issue in production",
+  "agent_id": "expert-debugger"
+}
+```
+
+### Allowlist Checking
+
+Restrict which agents can be spawned:
+
+```go
+spawnTool.SetAllowlistChecker(func(targetAgentID string) bool {
+    allowed := map[string]bool{
+        "research-agent": true,
+        "code-reviewer": true,
+        "expert-debugger": true,
+    }
+    return allowed[targetAgentID]
+})
+```
+
+**Blocked spawn:**
+```json
+{
+  "error": "not allowed to spawn agent 'untrusted-agent'"
+}
+```
+
+---
+
+## Subagent Manager
+
+The spawn tool integrates with a `SubagentManager` that handles:
+
+- Creating subagent instances
+- Managing lifecycle and state
+- Routing messages between parent and subagent
+- Completion notification
+- Resource cleanup
+
+```go
+manager := NewSubagentManager(config)
+spawnTool := NewSpawnTool(manager)
+```
+
+---
+
+## Use Cases
+
+### 1. Long-Running Analysis
+
+```json
+{
+  "task": "Download and analyze all GitHub issues from the past year",
+  "label": "Issue Analysis"
+}
+```
+
+**Benefits:**
+- Parent agent remains responsive
+- User can continue conversation
+- Results delivered when ready
+
+### 2. Parallel Processing
+
+```json
+[
+  {
+    "tool": "spawn",
+    "parameters": {
+      "task": "Test API endpoints in staging",
+      "label": "Staging Tests"
+    }
+  },
+  {
+    "tool": "spawn",
+    "parameters": {
+      "task": "Review recent code changes",
+      "label": "Code Review"
+    }
+  },
+  {
+    "tool": "spawn",
+    "parameters": {
+      "task": "Update documentation",
+      "label": "Docs Update"
+    }
+  }
+]
+```
+
+**Benefits:**
+- Tasks run in parallel
+- Faster overall completion
+- Independent failure handling
+
+### 3. Specialized Agents
+
+```json
+{
+  "task": "Optimize database queries in the user service",
+  "agent_id": "database-optimizer",
+  "label": "DB Optimization"
+}
+```
+
+**Benefits:**
+- Task routed to expert agent
+- Better quality results
+- Separation of concerns
+
+### 4. Background Monitoring
+
+```json
+{
+  "task": "Monitor deployment status and alert on failures",
+  "label": "Deployment Monitor"
+}
+```
+
+**Benefits:**
+- Non-blocking monitoring
+- Continuous background operation
+- Event-driven notifications
+
+---
+
+## Error Handling
+
+### Missing Parameters
+
+```json
+{
+  "error": "task is required and must be a non-empty string"
+}
+```
+
+### Agent Not Allowed
+
+```json
+{
+  "error": "not allowed to spawn agent 'restricted-agent'"
+}
+```
+
+### Manager Not Configured
+
+```json
+{
+  "error": "Subagent manager not configured"
+}
+```
+
+### Spawn Failure
+
+```json
+{
+  "error": "failed to spawn subagent: maximum concurrent subagents reached"
+}
+```
+
+---
+
+## Async Result Format
+
+Spawn returns an `AsyncResult` indicating background execution:
+
+```go
+type ToolResult struct {
+    ForLLM  string
+    ForUser string
+    IsAsync bool
+    Silent  bool
+}
+
+func AsyncResult(message string) *ToolResult {
+    return &ToolResult{
+        ForLLM:  message,
+        ForUser: message,
+        IsAsync: true,
+    }
+}
+```
+
+**Properties:**
+- `IsAsync: true` - Indicates background operation
+- Agent continues processing without waiting
+- Completion notification via callback
+
+---
+
+## Best Practices
+
+### 1. Clear Task Descriptions
+
+```json
+// ✅ Good
+{
+  "task": "Search codebase for SQL injection vulnerabilities and create a detailed report with file locations and severity"
+}
+
+// ❌ Avoid
+{
+  "task": "check code"
+}
+```
+
+### 2. Meaningful Labels
+
+```json
+// ✅ Good
+{ "label": "Security Audit" }
+
+// ❌ Avoid
+{ "label": "task1" }
+```
+
+### 3. Task Granularity
+
+```json
+// ✅ Good - Self-contained tasks
+{ "task": "Analyze error logs from last 24 hours" }
+{ "task": "Generate performance metrics report" }
+
+// ❌ Avoid - Overly broad
+{ "task": "Fix everything" }
+```
+
+### 4. Resource Awareness
+
+```json
+// ✅ Good - Parallel independent tasks
+{ "task": "Fetch user data" }
+{ "task": "Fetch product data" }
+
+// ❌ Avoid - Resource conflicts
+{ "task": "Write to config.json" }
+{ "task": "Update config.json" }  // Race condition!
+```
+
+### 5. Implement Callbacks
+
+```go
+spawnTool.SetCallback(func(result string) {
+    // Log completion
+    log.Printf("Subagent result: %s", result)
+    
+    // Notify user
+    messageTool.Execute(ctx, map[string]any{
+        "content": fmt.Sprintf("Background task completed: %s", result),
+    })
+    
+    // Update state
+    updateTaskStatus(result)
+})
+```
+
+---
+
+## Limitations
+
+### Resource Constraints
+
+- **Concurrent limit**: Maximum number of subagents per parent
+- **Memory usage**: Each subagent has its own context
+- **CPU utilization**: Parallel execution impact
+
+### Communication
+
+- No direct parent-subagent messaging during execution
+- Completion notification is one-way
+- Subagent cannot ask parent for clarification
+
+### Task Requirements
+
+- Tasks must be self-contained
+- Cannot depend on parent agent state
+- Must have clear completion criteria
+
+---
+
+## Integration Examples
+
+### With Message Tool
+
+```go
+spawnTool.SetCallback(func(result string) {
+    messageTool.Execute(ctx, map[string]any{
+        "content": result,
+    })
+})
+```
+
+### With Cron Tool
+
+```json
+{
+  "tool": "cron",
+  "parameters": {
+    "action": "add",
+    "message": "Spawn daily report generation",
+    "cron_expr": "0 9 * * *",
+    "deliver": false
+  }
+}
+
+// Agent processes cron message and spawns subagent:
+{
+  "tool": "spawn",
+  "parameters": {
+    "task": "Generate and email daily activity report",
+    "label": "Daily Report"
+  }
+}
+```
+
+### Multi-Stage Pipeline
+
+```json
+// Stage 1: Data collection
+{
+  "task": "Collect metrics from all services",
+  "label": "Data Collection"
+}
+
+// Callback spawns Stage 2: Analysis
+{
+  "task": "Analyze collected metrics and identify anomalies",
+  "label": "Analysis"
+}
+
+// Callback spawns Stage 3: Reporting
+{
+  "task": "Generate report from analysis results",
+  "label": "Reporting"
+}
+```

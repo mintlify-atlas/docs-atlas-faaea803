@@ -1,0 +1,352 @@
+---
+title: QQ Channel
+description: Connect PicoClaw to QQ using the QQ Open Platform
+---
+
+QQ is one of China's most popular instant messaging platforms. PicoClaw can integrate with QQ using the official QQ Open Platform API.
+
+## Why QQ?
+
+- **Popular in China**: Widely used for personal and business communication
+- **Easy Setup**: Just AppID and AppSecret required
+- **No Webhooks**: Uses official API with polling/WebSocket
+- **Group Support**: Works in private chats and group conversations
+
+## Prerequisites
+
+- QQ account
+- Access to [QQ Open Platform](https://q.qq.com/#)
+- PicoClaw installed with LLM provider configured
+- ~15 minutes for setup and approval
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Register on QQ Open Platform">
+    1. Go to [QQ Open Platform](https://q.qq.com/#)
+    2. Log in with your QQ account
+    3. Complete developer registration (if first time)
+    4. Verify your identity (may require phone/ID verification)
+  </Step>
+
+  <Step title="Create a Bot Application">
+    1. Navigate to **Application Management** → **Create Application**
+    2. Select **QQ Bot** as the application type
+    3. Fill in:
+       - Application name
+       - Description
+       - Icon/logo
+       - Category
+    4. Submit for review
+    5. Wait for approval (usually 1-3 business days)
+
+    <Note>
+    QQ bot applications require review by Tencent. Make sure your application description clearly explains your bot's purpose.
+    </Note>
+  </Step>
+
+  <Step title="Get AppID and AppSecret">
+    After approval:
+
+    1. Go to **Application Management** → Your App
+    2. Find **AppID** (also called BotAppID)
+    3. Find **AppSecret** (also called Token or Secret)
+    4. Copy both values for configuration
+
+    <Warning>
+    Keep your AppSecret secure! It grants full access to your bot. Never share it publicly or commit it to version control.
+    </Warning>
+  </Step>
+
+  <Step title="Configure PicoClaw">
+    Edit `~/.picoclaw/config.json`:
+
+    ```json
+    {
+      "channels": {
+        "qq": {
+          "enabled": true,
+          "app_id": "YOUR_APP_ID",
+          "app_secret": "YOUR_APP_SECRET",
+          "allow_from": []
+        }
+      }
+    }
+    ```
+
+    Replace:
+    - `app_id`: Your BotAppID from QQ Open Platform
+    - `app_secret`: Your AppSecret/Token
+    - `allow_from`: QQ numbers to allow (empty array = allow all)
+  </Step>
+
+  <Step title="Start the Gateway">
+    Run PicoClaw Gateway:
+
+    ```bash
+    picoclaw gateway
+    ```
+
+    You should see:
+    ```
+    [INFO] qq: Connected to QQ Open Platform
+    [INFO] qq: Bot online, listening for messages
+    ```
+  </Step>
+
+  <Step title="Add Bot as Friend">
+    1. Search for your bot using its QQ number (shown in QQ Open Platform)
+    2. Add it as a friend
+    3. Send a message to test
+    4. The bot should respond with AI-generated replies
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Basic Configuration
+
+```json
+{
+  "channels": {
+    "qq": {
+      "enabled": true,
+      "app_id": "YOUR_APP_ID",
+      "app_secret": "YOUR_APP_SECRET",
+      "allow_from": []
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | Yes | Enable QQ channel |
+| `app_id` | string | Yes | BotAppID from QQ Open Platform |
+| `app_secret` | string | Yes | AppSecret/Token from QQ Open Platform |
+| `allow_from` | array | No | List of allowed QQ numbers (empty = allow all) |
+
+### Access Control
+
+**Allow specific QQ numbers:**
+```json
+{
+  "allow_from": ["123456789", "987654321"]
+}
+```
+
+Use QQ number as string (not numeric).
+
+**Allow everyone (public bot):**
+```json
+{
+  "allow_from": []
+}
+```
+
+<Warning>
+Public bots can be abused. Consider:
+- Setting `allow_from` for personal use
+- Monitoring API costs from your LLM provider
+- Implementing rate limiting if needed
+</Warning>
+
+## Features
+
+### Text Messages
+
+Send and receive text messages with full conversation context maintained per user.
+
+### Private Chats
+
+Users can chat with the bot one-on-one after adding it as a friend.
+
+### Group Chats
+
+Add the bot to QQ groups (if group admin permissions allow). The bot can:
+- Respond to all messages (if allowed)
+- Respond only when @mentioned (configurable)
+- Maintain separate context per group
+
+### Rich Media
+
+Depending on QQ API capabilities:
+- Send/receive images
+- Handle file attachments
+- Support emoji and stickers
+
+## Troubleshooting
+
+### "Invalid AppID or AppSecret"
+
+**Possible causes**:
+1. Incorrect credentials copied from platform
+2. Application not yet approved
+3. Application suspended or revoked
+
+**Solution**:
+1. Verify AppID and AppSecret in QQ Open Platform
+2. Check application status (must be "Approved")
+3. Ensure credentials are copied correctly (no extra spaces)
+4. Regenerate AppSecret if needed
+
+### Bot doesn't respond
+
+**Check these**:
+
+1. **Gateway running**: Ensure `picoclaw gateway` is active
+2. **Allow list**: Verify sender's QQ number in `allow_from` (or empty array)
+3. **LLM configured**: Test with `picoclaw agent -m "test"`
+4. **Bot online**: Check QQ Open Platform for bot status
+5. **Friendship**: User must add bot as friend for private chats
+
+### "Application pending review"
+
+**Cause**: QQ bot applications require manual review by Tencent
+
+**Timeline**: Usually 1-3 business days, can be longer during holidays
+
+**Action**:
+- Wait for review completion
+- Check your notification emails
+- Ensure application description is clear and compliant
+
+### Connection errors
+
+**Possible causes**:
+1. Network connectivity issues
+2. QQ API service interruption
+3. Invalid credentials
+4. IP restrictions (if QQ enforces regional limits)
+
+**Check**:
+- Network access to QQ servers
+- QQ Open Platform status page
+- Gateway logs for specific error messages
+
+### Messages delayed
+
+**Possible causes**:
+1. QQ API rate limiting
+2. Network latency
+3. LLM provider slow response
+
+**Solutions**:
+- Check QQ API rate limits in platform documentation
+- Use faster LLM providers (e.g., Groq, Cerebras)
+- Monitor Gateway logs for timing information
+
+## Rate Limits
+
+QQ Open Platform enforces rate limits:
+
+- **Message sending**: Varies by account level (check platform docs)
+- **API calls**: Typically 1000-10000 requests/day depending on tier
+- **Group messages**: May have stricter limits
+
+<Note>
+Rate limits depend on your QQ Open Platform account level and application tier. Check the official documentation for current limits.
+</Note>
+
+## Privacy & Security
+
+<Warning>
+**Security Best Practices**:
+
+- Never share your AppSecret
+- Never commit credentials to git repositories
+- Use `allow_from` to restrict access for personal bots
+- Regenerate AppSecret if compromised
+- Monitor bot activity in QQ Open Platform dashboard
+- Review message logs for unexpected usage
+</Warning>
+
+### Data Privacy
+
+QQ bots can access:
+- Messages sent to the bot
+- User QQ numbers
+- Group information (if in groups)
+- User profile data (depending on permissions)
+
+Be aware of:
+- QQ/Tencent privacy policies and data handling
+- Local data retention in PicoClaw workspace
+- LLM provider data logging policies
+- Chinese data protection regulations (if applicable)
+
+## Complete Example
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "model_name": "gpt4"
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-5.2",
+      "api_key": "your-api-key"
+    }
+  ],
+  "channels": {
+    "qq": {
+      "enabled": true,
+      "app_id": "123456789",
+      "app_secret": "abcdef1234567890abcdef1234567890",
+      "allow_from": ["987654321"]
+    }
+  }
+}
+```
+
+## Regional Considerations
+
+<Note>
+**China-Specific Notes**:
+
+- QQ is primarily used in mainland China
+- QQ Open Platform may require Chinese phone number for verification
+- Consider using Chinese LLM providers (Zhipu, Qwen) for better performance and compliance
+- Be aware of content filtering and regulations
+- Server hosting in China may improve latency
+</Note>
+
+### Recommended LLM Providers for QQ
+
+```json
+{
+  "model_list": [
+    {
+      "model_name": "glm-4",
+      "model": "zhipu/glm-4.7",
+      "api_key": "your-zhipu-key"
+    },
+    {
+      "model_name": "qwen",
+      "model": "qwen/qwen-plus",
+      "api_key": "your-qwen-key"
+    }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="DingTalk Channel" icon="building" href="/channels/dingtalk">
+    Another popular Chinese platform
+  </Card>
+  <Card title="WeCom Channel" icon="wechat" href="/channels/wecom">
+    Enterprise WeChat integration
+  </Card>
+  <Card title="Telegram Channel" icon="telegram" href="/channels/telegram">
+    International alternative
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Advanced configuration options
+  </Card>
+</CardGroup>

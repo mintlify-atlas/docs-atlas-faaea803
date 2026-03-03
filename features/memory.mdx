@@ -1,0 +1,444 @@
+---
+title: Memory System
+description: Long-term memory and daily notes for persistent context
+---
+
+PicoClaw's memory system provides persistent storage for important information across sessions. The agent can remember user preferences, past interactions, and important context.
+
+## Overview
+
+The memory system consists of two components:
+
+1. **Long-term memory** (`MEMORY.md`) - Persistent facts, preferences, and key information
+2. **Daily notes** (`YYYYMM/YYYYMMDD.md`) - Chronological daily logs organized by date
+
+## Directory Structure
+
+Memory files are stored in your workspace:
+
+```
+~/.picoclaw/workspace/memory/
+├── MEMORY.md              # Long-term memory
+└── 202603/                # Month directory (YYYYMM)
+    ├── 20260301.md        # Daily note (YYYYMMDD)
+    ├── 20260302.md
+    └── 20260303.md
+```
+
+## Long-Term Memory
+
+### File Location
+
+```
+~/.picoclaw/workspace/memory/MEMORY.md
+```
+
+### Purpose
+
+Stores permanent information that should be remembered across all sessions:
+
+- User preferences and settings
+- Important facts about the user
+- Project-specific information
+- Frequently used commands or workflows
+- Key decisions and rationale
+
+### Example MEMORY.md
+
+```markdown
+# Long-term Memory
+
+## User Preferences
+
+- Preferred programming language: Go
+- Code style: Use tabs for indentation
+- Time zone: UTC-8 (Pacific Time)
+- Preferred communication style: Concise and technical
+
+## Projects
+
+### PicoClaw Documentation
+- Location: ~/workspace/docs/
+- Using Mintlify for documentation
+- Target audience: Developers and system administrators
+
+## Important Facts
+
+- User works on embedded systems and IoT devices
+- Interested in resource-efficient AI solutions
+- Prefers command-line tools over GUI applications
+
+## Common Tasks
+
+### Deploy PicoClaw
+```bash
+make build
+scp build/picoclaw-linux-arm64 pi@device:/usr/local/bin/
+```
+
+### Check logs
+```bash
+journalctl -u picoclaw -f --no-pager
+```
+```
+
+### Usage
+
+The agent automatically:
+- Reads `MEMORY.md` at the start of each session
+- Updates it when you say something memorable
+- References it when making decisions
+
+**Agent prompt includes:**
+```
+3. **Memory** - When interacting with me if something seems memorable, 
+   update ~/.picoclaw/workspace/memory/MEMORY.md
+```
+
+## Daily Notes
+
+### File Format
+
+Daily notes are organized by year and month:
+
+```
+memory/YYYYMM/YYYYMMDD.md
+```
+
+Examples:
+- `memory/202603/20260301.md` - March 1, 2026
+- `memory/202603/20260302.md` - March 2, 2026
+- `memory/202604/20260415.md` - April 15, 2026
+
+### Purpose
+
+Daily notes provide chronological context:
+
+- Session summaries and interactions
+- Tasks completed each day
+- Problems solved and solutions found
+- Daily progress on projects
+
+### Example Daily Note
+
+```markdown
+# 2026-03-01
+
+## Morning Session
+
+- Fixed web search fallback issue in web.go
+- Updated configuration documentation
+- Tested DuckDuckGo provider
+
+## Afternoon Session
+
+- Implemented heartbeat system documentation
+- Added examples for spawn tool usage
+- Reviewed and merged PR #123
+
+## Notes
+
+- User requested better error messages for API failures
+- Need to add rate limiting documentation
+```
+
+### Recent Context
+
+The agent automatically includes recent daily notes (last 3 days) in its context:
+
+```
+## Recent Daily Notes
+
+# 2026-03-03
+...
+
+---
+
+# 2026-03-02  
+...
+
+---
+
+# 2026-03-01
+...
+```
+
+## How the Agent Uses Memory
+
+### Reading Memory
+
+At the start of each session, the agent loads:
+
+1. **Long-term memory** (`MEMORY.md`)
+2. **Recent daily notes** (last 3 days)
+
+This context is included in the system prompt:
+
+```
+# Memory
+
+## Long-term Memory
+[Content from MEMORY.md]
+
+---
+
+## Recent Daily Notes
+[Content from last 3 daily notes]
+```
+
+### Writing Memory
+
+The agent updates memory when:
+
+- You explicitly ask it to remember something
+- It encounters important information worth remembering
+- You correct or provide new preferences
+- Significant tasks are completed
+
+### Memory Context Building
+
+The `MemoryStore` provides formatted context:
+
+```go
+func (ms *MemoryStore) GetMemoryContext() string {
+    longTerm := ms.ReadLongTerm()
+    recentNotes := ms.GetRecentDailyNotes(3)
+    
+    // Combines long-term memory and recent notes
+    // Returns empty string if no memory exists
+}
+```
+
+## API Reference
+
+### MemoryStore Interface
+
+The memory system is implemented in `pkg/agent/memory.go`:
+
+```go
+type MemoryStore struct {
+    workspace  string
+    memoryDir  string
+    memoryFile string
+}
+```
+
+### Methods
+
+#### ReadLongTerm()
+Reads the long-term memory file.
+
+```go
+func (ms *MemoryStore) ReadLongTerm() string
+```
+
+Returns: Content of `MEMORY.md` or empty string if file doesn't exist.
+
+#### WriteLongTerm(content string)
+Writes content to long-term memory.
+
+```go
+func (ms *MemoryStore) WriteLongTerm(content string) error
+```
+
+Parameters:
+- `content`: Full content to write to `MEMORY.md`
+
+Returns: Error if write fails.
+
+#### ReadToday()
+Reads today's daily note.
+
+```go
+func (ms *MemoryStore) ReadToday() string  
+```
+
+Returns: Content of today's note or empty string.
+
+#### AppendToday(content string)
+Appends content to today's daily note.
+
+```go
+func (ms *MemoryStore) AppendToday(content string) error
+```
+
+Parameters:
+- `content`: Content to append
+
+Behavior:
+- Creates file with date header if it doesn't exist
+- Appends to existing content with newline separator
+
+#### GetRecentDailyNotes(days int)
+Retrieve daily notes from the last N days.
+
+```go
+func (ms *MemoryStore) GetRecentDailyNotes(days int) string
+```
+
+Parameters:
+- `days`: Number of days to retrieve (default: 3)
+
+Returns: Combined notes with "---" separator.
+
+#### GetMemoryContext()
+Get formatted memory context for agent prompt.
+
+```go
+func (ms *MemoryStore) GetMemoryContext() string
+```
+
+Returns: Formatted context with long-term memory and recent notes.
+
+## Storage Details
+
+### Atomic Writes
+
+All memory writes use atomic file operations:
+
+```go
+fileutil.WriteFileAtomic(filePath, []byte(content), 0o600)
+```
+
+This ensures:
+- No partial writes on crash
+- Safe for embedded systems with flash storage
+- Explicit sync for reliability
+
+### File Permissions
+
+- Memory files: `0o600` (owner read/write only)
+- Directories: `0o755` (owner full, others read/execute)
+
+### Directory Creation
+
+Directories are created automatically:
+- `memory/` - Created when MemoryStore initializes
+- `memory/YYYYMM/` - Created when appending to daily notes
+
+## Best Practices
+
+### What to Store in Long-term Memory
+
+✅ **Do store:**
+- User preferences and settings
+- Important personal facts
+- Project-specific information
+- Common workflows and commands
+- Key decisions and rationale
+
+❌ **Don't store:**
+- Temporary information
+- Session-specific details (use daily notes)
+- Sensitive credentials (use secure storage)
+- Large data dumps
+
+### What to Store in Daily Notes
+
+✅ **Do store:**
+- Session summaries
+- Daily progress
+- Problems solved
+- Tasks completed
+- Temporary context
+
+❌ **Don't store:**
+- Permanent preferences (use MEMORY.md)
+- Detailed logs (use proper logging)
+- Large outputs
+
+### Maintenance
+
+- Periodically review and update `MEMORY.md`
+- Archive old daily notes if needed
+- Keep long-term memory concise and relevant
+- Use markdown formatting for readability
+
+## Manual Editing
+
+You can manually edit memory files:
+
+```bash
+# Edit long-term memory
+vim ~/.picoclaw/workspace/memory/MEMORY.md
+
+# Edit today's note
+vim ~/.picoclaw/workspace/memory/$(date +%Y%m)/$(date +%Y%m%d).md
+
+# View recent notes
+ls -la ~/.picoclaw/workspace/memory/$(date +%Y%m)/
+```
+
+## Integration with Other Features
+
+### Heartbeat Tasks
+
+Heartbeat can append to memory:
+```markdown
+# Periodic Tasks
+- Summarize today's completed tasks and append to daily notes
+```
+
+### Session History
+
+Memory complements session history:
+- **Session history**: Full conversation context for current session
+- **Memory**: Curated important information across sessions
+
+### Skills
+
+Skills can leverage memory:
+```markdown
+# Skill: project-setup
+
+Read user preferences from memory/MEMORY.md
+Use preferred language and tools
+```
+
+## Troubleshooting
+
+### Memory Not Loading
+
+1. Check file exists:
+```bash
+ls -la ~/.picoclaw/workspace/memory/MEMORY.md
+```
+
+2. Verify permissions:
+```bash
+chmod 600 ~/.picoclaw/workspace/memory/MEMORY.md
+```
+
+3. Check workspace configuration:
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace"
+    }
+  }
+}
+```
+
+### Daily Notes Not Created
+
+1. Check memory directory permissions:
+```bash
+ls -lad ~/.picoclaw/workspace/memory/
+```
+
+2. Manually create if needed:
+```bash
+mkdir -p ~/.picoclaw/workspace/memory/$(date +%Y%m)
+```
+
+3. Test write access:
+```bash
+echo "test" > ~/.picoclaw/workspace/memory/test.txt
+```
+
+## Related Features
+
+- [Session History](/features/sessions) - Conversation context within a session
+- [Heartbeat](/features/heartbeat) - Automated memory updates via periodic tasks
+- [Workspace](/configuration/workspace) - Understanding workspace structure

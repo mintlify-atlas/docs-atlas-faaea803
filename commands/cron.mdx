@@ -1,0 +1,424 @@
+---
+title: 'picoclaw cron'
+description: 'Manage scheduled tasks and recurring agent jobs'
+---
+
+## Overview
+
+The `cron` command manages scheduled tasks that run automatically at specified intervals or cron expressions. Tasks can send messages to the agent and optionally deliver responses to messaging channels.
+
+## Usage
+
+```bash
+picoclaw cron [subcommand] [flags]
+```
+
+**Alias:** `picoclaw c`
+
+## Subcommands
+
+### list
+
+List all scheduled jobs (enabled and disabled).
+
+```bash
+picoclaw cron list
+```
+
+**Output:**
+```
+Scheduled Jobs:
+----------------
+  Daily Report (1)
+    Schedule: every 86400s
+    Status: enabled
+    Next run: 2026-03-04 09:00
+  
+  Hourly Check (2)
+    Schedule: 0 * * * *
+    Status: enabled
+    Next run: 2026-03-03 14:00
+  
+  Backup Task (3)
+    Schedule: 0 2 * * *
+    Status: disabled
+    Next run: scheduled
+```
+
+### add
+
+Add a new scheduled job.
+
+```bash
+picoclaw cron add [flags]
+```
+
+#### Flags
+
+<ParamField path="-n, --name" type="string" required>
+  Job name for identification.
+  
+  ```bash
+  picoclaw cron add -n "Daily Summary"
+  ```
+</ParamField>
+
+<ParamField path="-m, --message" type="string" required>
+  Message to send to the agent when the job runs.
+  
+  ```bash
+  picoclaw cron add -n "Status Check" -m "Check system status and report any issues"
+  ```
+</ParamField>
+
+<ParamField path="-e, --every" type="integer">
+  Run every N seconds. Mutually exclusive with `--cron`.
+  
+  ```bash
+  # Run every hour (3600 seconds)
+  picoclaw cron add -n "Hourly Check" -m "Check status" -e 3600
+  ```
+</ParamField>
+
+<ParamField path="-c, --cron" type="string">
+  Cron expression for scheduling. Mutually exclusive with `--every`.
+  
+  ```bash
+  # Run daily at 9 AM
+  picoclaw cron add -n "Daily Report" -m "Generate daily report" -c "0 9 * * *"
+  ```
+</ParamField>
+
+<ParamField path="-d, --deliver" type="boolean" default="false">
+  Deliver the agent's response to a channel.
+  
+  ```bash
+  picoclaw cron add -n "Alert" -m "Check alerts" -e 300 -d --channel telegram --to "123456789"
+  ```
+</ParamField>
+
+<ParamField path="--channel" type="string">
+  Channel to deliver response to (requires `--deliver`).
+  
+  Available channels: telegram, slack, discord, whatsapp, etc.
+</ParamField>
+
+<ParamField path="--to" type="string">
+  Recipient identifier for delivery (channel-specific: chat ID, user ID, channel name).
+</ParamField>
+
+**Note:** Either `--every` or `--cron` must be specified, but not both.
+
+### remove
+
+Remove a job by its ID.
+
+```bash
+picoclaw cron remove <job-id>
+```
+
+**Example:**
+```bash
+picoclaw cron remove 1
+```
+
+**Output:**
+```
+✓ Removed job 1
+```
+
+### enable
+
+Enable a disabled job.
+
+```bash
+picoclaw cron enable <job-id>
+```
+
+**Example:**
+```bash
+picoclaw cron enable 2
+```
+
+**Output:**
+```
+✓ Job 'Hourly Check' enabled
+```
+
+### disable
+
+Disable an active job (keeps configuration but prevents execution).
+
+```bash
+picoclaw cron disable <job-id>
+```
+
+**Example:**
+```bash
+picoclaw cron disable 2
+```
+
+**Output:**
+```
+✓ Job 'Hourly Check' disabled
+```
+
+## Examples
+
+### Simple Periodic Task
+
+Run every 5 minutes (300 seconds):
+
+```bash
+picoclaw cron add \
+  -n "Quick Check" \
+  -m "Check for any system alerts" \
+  -e 300
+```
+
+**Output:**
+```
+✓ Added job 'Quick Check' (1)
+```
+
+### Daily Report with Delivery
+
+Generate and send a daily report to Telegram:
+
+```bash
+picoclaw cron add \
+  -n "Daily Summary" \
+  -m "Generate a summary of today's activities and metrics" \
+  -c "0 9 * * *" \
+  -d \
+  --channel telegram \
+  --to "123456789"
+```
+
+### Hourly Monitoring
+
+Check system health every hour:
+
+```bash
+picoclaw cron add \
+  -n "Health Check" \
+  -m "Monitor system health and alert if any issues found" \
+  -e 3600
+```
+
+### Weekly Backup Reminder
+
+Remind about backups every Monday at 10 AM:
+
+```bash
+picoclaw cron add \
+  -n "Backup Reminder" \
+  -m "Verify that backups are running correctly" \
+  -c "0 10 * * 1" \
+  -d \
+  --channel slack \
+  --to "#ops-team"
+```
+
+### Every 30 Seconds
+
+Rapid monitoring:
+
+```bash
+picoclaw cron add \
+  -n "Critical Monitor" \
+  -m "Check critical services" \
+  -e 30
+```
+
+### List All Jobs
+
+```bash
+picoclaw cron list
+```
+
+### Temporarily Disable a Job
+
+```bash
+# Disable job 3
+picoclaw cron disable 3
+
+# Re-enable later
+picoclaw cron enable 3
+```
+
+### Remove Completed Job
+
+```bash
+picoclaw cron remove 4
+```
+
+## Cron Expression Format
+
+When using `--cron`, use standard cron syntax:
+
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │
+│ │ │ │ │
+* * * * *
+```
+
+### Common Patterns
+
+```bash
+# Every hour at minute 0
+"0 * * * *"
+
+# Every day at 2 AM
+"0 2 * * *"
+
+# Every Monday at 9 AM
+"0 9 * * 1"
+
+# Every weekday at 6 PM
+"0 18 * * 1-5"
+
+# Every 15 minutes
+"*/15 * * * *"
+
+# First day of month at midnight
+"0 0 1 * *"
+```
+
+## Job Storage
+
+Jobs are stored in: `~/.picoclaw/workspace/cron/jobs.json`
+
+This file is automatically managed by the cron service. You can back it up or version control it.
+
+## Execution
+
+Cron jobs only execute when the gateway is running:
+
+```bash
+picoclaw gateway
+```
+
+**Output:**
+```
+...
+✓ Cron service started
+```
+
+Jobs run in the background and:
+- Execute at scheduled times
+- Send messages to the agent
+- Receive agent responses
+- Optionally deliver to channels
+- Log execution results
+
+## Timeouts
+
+Job execution timeout is configured in `config.yaml`:
+
+```yaml
+tools:
+  cron:
+    exec_timeout_minutes: 30
+```
+
+If a job takes longer than the timeout, it will be terminated.
+
+## Delivery Channels
+
+When using `--deliver`, specify:
+
+### Telegram
+```bash
+--channel telegram --to "123456789"  # Chat ID
+```
+
+### Slack
+```bash
+--channel slack --to "#channel-name"  # Channel name
+--channel slack --to "@username"      # Direct message
+```
+
+### Discord
+```bash
+--channel discord --to "987654321"  # Channel ID
+```
+
+### Other Channels
+Refer to channel-specific documentation for recipient format.
+
+## Tips
+
+- **Testing**: Use short intervals (e.g., `-e 60`) for testing, then adjust
+- **Timezone**: Cron expressions use the system timezone
+- **Job Names**: Use descriptive names for easy identification
+- **Delivery**: Test delivery without cron first using `picoclaw agent`
+- **Monitoring**: Check logs when gateway runs to see job execution
+- **Disable vs Remove**: Use disable to temporarily pause jobs; remove to delete permanently
+
+## Common Use Cases
+
+1. **System Monitoring**: Regular health checks
+   ```bash
+   picoclaw cron add -n "System Health" -m "Check system metrics" -e 300
+   ```
+
+2. **Daily Reports**: Automated summaries
+   ```bash
+   picoclaw cron add -n "Daily Report" -m "Summarize activities" -c "0 9 * * *" -d --channel slack --to "#reports"
+   ```
+
+3. **Alert Checking**: Periodic alert monitoring
+   ```bash
+   picoclaw cron add -n "Alert Check" -m "Check for alerts" -e 600
+   ```
+
+4. **Backup Verification**: Weekly backup checks
+   ```bash
+   picoclaw cron add -n "Backup Check" -m "Verify backups" -c "0 10 * * 1"
+   ```
+
+## Troubleshooting
+
+### Jobs Not Running
+
+**Problem**: Jobs listed but not executing
+
+**Solution**: Ensure gateway is running:
+```bash
+picoclaw gateway
+```
+
+### Invalid Cron Expression
+
+**Error:**
+```
+Error: invalid cron expression
+```
+
+**Solution**: Verify cron syntax at https://crontab.guru
+
+### Delivery Failures
+
+**Problem**: Job runs but delivery fails
+
+**Solution**:
+1. Verify channel is configured and enabled in config
+2. Check recipient identifier is correct
+3. Test delivery manually with `picoclaw agent`
+
+## Exit Codes
+
+- `0`: Success
+- `1`: Error (invalid arguments, job not found, etc.)
+
+## See Also
+
+- [picoclaw gateway](/commands/gateway) - Required for job execution
+- [picoclaw agent](/commands/agent) - Test messages before scheduling
+- [Channel Configuration](/channels) - Configure delivery channels

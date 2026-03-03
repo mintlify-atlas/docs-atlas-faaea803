@@ -1,0 +1,419 @@
+---
+title: Tools Configuration
+description: Configure web search, cron, file access, and other tools
+---
+
+## Overview
+
+The `tools` section configures various tools available to the PicoClaw agent:
+
+- **web** - Web search providers (Brave, Tavily, DuckDuckGo)
+- **cron** - Scheduled task settings
+- **exec** - Command execution controls
+- **skills** - Skill registry configuration
+- **mcp** - Model Context Protocol servers
+- **media_cleanup** - Automatic media file cleanup
+
+## Web Search Configuration
+
+### Structure
+
+```json
+{
+  "tools": {
+    "web": {
+      "brave": {
+        "enabled": false,
+        "api_key": "YOUR_BRAVE_API_KEY",
+        "max_results": 5
+      },
+      "tavily": {
+        "enabled": false,
+        "api_key": "YOUR_TAVILY_API_KEY",
+        "max_results": 5
+      },
+      "duckduckgo": {
+        "enabled": true,
+        "max_results": 5
+      },
+      "proxy": "",
+      "fetch_limit_bytes": 10485760
+    }
+  }
+}
+```
+
+### Brave Search
+
+**Free Tier:** 2,000 queries/month  
+**Get API Key:** [brave.com/search/api](https://brave.com/search/api)
+
+```json
+{
+  "brave": {
+    "enabled": true,
+    "api_key": "BSA...",
+    "max_results": 5
+  }
+}
+```
+
+**Environment variables:**
+- `PICOCLAW_TOOLS_WEB_BRAVE_ENABLED`
+- `PICOCLAW_TOOLS_WEB_BRAVE_API_KEY`
+- `PICOCLAW_TOOLS_WEB_BRAVE_MAX_RESULTS`
+
+### Tavily Search
+
+**Free Tier:** 1,000 queries/month  
+**Get API Key:** [tavily.com](https://tavily.com)
+
+```json
+{
+  "tavily": {
+    "enabled": true,
+    "api_key": "tvly-...",
+    "base_url": "https://api.tavily.com",
+    "max_results": 5
+  }
+}
+```
+
+**Environment variables:**
+- `PICOCLAW_TOOLS_WEB_TAVILY_ENABLED`
+- `PICOCLAW_TOOLS_WEB_TAVILY_API_KEY`
+- `PICOCLAW_TOOLS_WEB_TAVILY_BASE_URL`
+- `PICOCLAW_TOOLS_WEB_TAVILY_MAX_RESULTS`
+
+### DuckDuckGo Search
+
+**Free:** No API key required  
+**Limitations:** Rate-limited, less reliable than paid options
+
+```json
+{
+  "duckduckgo": {
+    "enabled": true,
+    "max_results": 5
+  }
+}
+```
+
+**Environment variables:**
+- `PICOCLAW_TOOLS_WEB_DUCKDUCKGO_ENABLED`
+- `PICOCLAW_TOOLS_WEB_DUCKDUCKGO_MAX_RESULTS`
+
+### Web Tools Proxy
+
+Configure proxy for all web tools:
+
+```json
+{
+  "web": {
+    "proxy": "http://proxy.example.com:8080"
+  }
+}
+```
+
+Supports: `http://`, `https://`, `socks5://`, `socks5h://`
+
+**Environment:** `PICOCLAW_TOOLS_WEB_PROXY`
+
+### Fetch Limit
+
+Maximum bytes to fetch from web pages:
+
+```json
+{
+  "web": {
+    "fetch_limit_bytes": 10485760  // 10 MB
+  }
+}
+```
+
+**Environment:** `PICOCLAW_TOOLS_WEB_FETCH_LIMIT_BYTES`
+
+## Cron Tool Configuration
+
+Configure scheduled task execution:
+
+```json
+{
+  "tools": {
+    "cron": {
+      "exec_timeout_minutes": 5
+    }
+  }
+}
+```
+
+### exec_timeout_minutes
+
+**Type:** `integer`  
+**Default:** `5`  
+**Environment:** `PICOCLAW_TOOLS_CRON_EXEC_TIMEOUT_MINUTES`
+
+Maximum execution time for cron tasks in minutes. Set to `0` for no timeout.
+
+```json
+{
+  "cron": {
+    "exec_timeout_minutes": 10
+  }
+}
+```
+
+<Warning>
+  Long-running cron tasks can block other scheduled jobs. Set appropriate timeouts.
+</Warning>
+
+## File Access Configuration
+
+Control agent access to specific paths outside the workspace:
+
+```json
+{
+  "tools": {
+    "allow_read_paths": [
+      "/home/user/documents",
+      "/var/log/app"
+    ],
+    "allow_write_paths": [
+      "/home/user/output"
+    ]
+  }
+}
+```
+
+### allow_read_paths
+
+**Type:** `array of strings`  
+**Environment:** `PICOCLAW_TOOLS_ALLOW_READ_PATHS`
+
+Paths the agent can read even with `restrict_to_workspace: true`.
+
+```json
+{
+  "allow_read_paths": [
+    "/etc/nginx/nginx.conf",
+    "/var/log/app/*.log"
+  ]
+}
+```
+
+### allow_write_paths
+
+**Type:** `array of strings`  
+**Environment:** `PICOCLAW_TOOLS_ALLOW_WRITE_PATHS`
+
+Paths the agent can write to even with `restrict_to_workspace: true`.
+
+```json
+{
+  "allow_write_paths": [
+    "/var/www/html/uploads",
+    "/tmp/picoclaw-output"
+  ]
+}
+```
+
+<Warning>
+  Be cautious with `allow_write_paths`. The agent can modify or delete files in these directories.
+</Warning>
+
+## Exec Tool Configuration
+
+Control command execution safety:
+
+```json
+{
+  "tools": {
+    "exec": {
+      "enable_deny_patterns": true,
+      "custom_deny_patterns": [
+        "rm -rf /",
+        "dd if=/dev/zero"
+      ],
+      "custom_allow_patterns": [
+        "git",
+        "npm"
+      ]
+    }
+  }
+}
+```
+
+### enable_deny_patterns
+
+**Type:** `boolean`  
+**Default:** `true`  
+**Environment:** `PICOCLAW_TOOLS_EXEC_ENABLE_DENY_PATTERNS`
+
+Enables built-in dangerous command patterns:
+
+- `rm -rf`, `del /f`, `rmdir /s` - Bulk deletion
+- `format`, `mkfs`, `diskpart` - Disk formatting
+- `dd if=` - Disk imaging
+- Writing to `/dev/sd[a-z]` - Direct disk writes
+- `shutdown`, `reboot`, `poweroff` - System shutdown
+- Fork bomb `:(){ :|:& };:`
+
+### custom_deny_patterns
+
+**Type:** `array of strings`  
+**Environment:** `PICOCLAW_TOOLS_EXEC_CUSTOM_DENY_PATTERNS`
+
+Additional command patterns to block:
+
+```json
+{
+  "custom_deny_patterns": [
+    "curl.*sudo",
+    "wget.*|bash"
+  ]
+}
+```
+
+### custom_allow_patterns
+
+**Type:** `array of strings`  
+**Environment:** `PICOCLAW_TOOLS_EXEC_CUSTOM_ALLOW_PATTERNS`
+
+Command patterns to explicitly allow:
+
+```json
+{
+  "custom_allow_patterns": [
+    "git",
+    "npm",
+    "docker",
+    "kubectl"
+  ]
+}
+```
+
+## Skills Registry Configuration
+
+```json
+{
+  "tools": {
+    "skills": {
+      "registries": {
+        "clawhub": {
+          "enabled": true,
+          "base_url": "https://clawhub.ai",
+          "auth_token": "",
+          "timeout": 30,
+          "max_zip_size": 10485760
+        }
+      },
+      "max_concurrent_searches": 2,
+      "search_cache": {
+        "max_size": 50,
+        "ttl_seconds": 300
+      }
+    }
+  }
+}
+```
+
+### ClawHub Registry
+
+**Environment variables:**
+- `PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_ENABLED`
+- `PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_BASE_URL`
+- `PICOCLAW_SKILLS_REGISTRIES_CLAWHUB_AUTH_TOKEN`
+
+## MCP Configuration
+
+Configure Model Context Protocol servers:
+
+```json
+{
+  "tools": {
+    "mcp": {
+      "enabled": true,
+      "servers": {
+        "filesystem": {
+          "enabled": true,
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/data"],
+          "env": {
+            "NODE_ENV": "production"
+          }
+        },
+        "github": {
+          "enabled": true,
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-github"],
+          "env_file": "/home/user/.mcp/github.env"
+        }
+      }
+    }
+  }
+}
+```
+
+**Environment:** `PICOCLAW_TOOLS_MCP_ENABLED`
+
+## Media Cleanup Configuration
+
+Automatic cleanup of old media files:
+
+```json
+{
+  "tools": {
+    "media_cleanup": {
+      "enabled": true,
+      "max_age_minutes": 30,
+      "interval_minutes": 5
+    }
+  }
+}
+```
+
+**Environment variables:**
+- `PICOCLAW_MEDIA_CLEANUP_ENABLED`
+- `PICOCLAW_MEDIA_CLEANUP_MAX_AGE`
+- `PICOCLAW_MEDIA_CLEANUP_INTERVAL`
+
+## Complete Example
+
+```json
+{
+  "tools": {
+    "allow_read_paths": ["/var/log"],
+    "allow_write_paths": ["/tmp/output"],
+    "web": {
+      "brave": {
+        "enabled": true,
+        "api_key": "BSA...",
+        "max_results": 5
+      },
+      "duckduckgo": {
+        "enabled": true,
+        "max_results": 5
+      },
+      "fetch_limit_bytes": 10485760
+    },
+    "cron": {
+      "exec_timeout_minutes": 10
+    },
+    "exec": {
+      "enable_deny_patterns": true,
+      "custom_allow_patterns": ["git", "npm"]
+    },
+    "media_cleanup": {
+      "enabled": true,
+      "max_age_minutes": 30,
+      "interval_minutes": 5
+    }
+  }
+}
+```
+
+## Next Steps
+
+- [Agent Configuration](/configuration/agents)
+- [Workspace Setup](/configuration/workspace)
+- [Environment Variables](/configuration/environment-variables)

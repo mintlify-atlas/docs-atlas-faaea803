@@ -1,0 +1,260 @@
+---
+title: 'Subagents'
+description: 'Learn how to use the spawn tool to create asynchronous subagents for parallel task execution'
+icon: 'diagram-project'
+---
+
+## Overview
+
+PicoClaw supports spawning **subagents** - independent agent instances that can execute tasks asynchronously without blocking the main agent. This is particularly useful for:
+
+- Long-running tasks (web searches, API calls)
+- Parallel task execution
+- Background jobs triggered by heartbeat
+- Tasks that need isolation from the main conversation context
+
+## How Subagents Work
+
+When you use the `spawn` tool, PicoClaw creates a new agent instance with:
+
+- **Independent context** - No access to the parent's conversation history
+- **Same workspace** - Inherits workspace path and restrictions
+- **Tool access** - Has access to all tools (message, web_search, exec, etc.)
+- **Isolated execution** - Runs asynchronously without blocking the parent
+
+<Note>
+Subagents inherit the same security restrictions as the parent agent (workspace sandboxing, exec safety patterns, etc.)
+</Note>
+
+## Using the Spawn Tool
+
+### Basic Syntax
+
+```json
+{
+  "tool": "spawn",
+  "parameters": {
+    "prompt": "Search the web for recent AI news and summarize the top 3 stories"
+  }
+}
+```
+
+### With Target Agent
+
+```json
+{
+  "tool": "spawn",
+  "parameters": {
+    "prompt": "Analyze this code and suggest improvements",
+    "target_agent_id": "code-reviewer"
+  }
+}
+```
+
+## Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Heartbeat Long-Running Tasks" icon="clock">
+    In `HEARTBEAT.md`, spawn subagents for tasks that take time:
+
+    ```markdown
+    # Periodic Tasks
+
+    ## Quick Tasks (respond directly)
+    - Report current time
+    - Check workspace size
+
+    ## Long Tasks (use spawn for async)
+    - Search the web for AI news and summarize
+    - Check email and report important messages
+    - Monitor system logs for errors
+    ```
+
+    The main agent spawns a subagent for each long task, then continues to the next heartbeat task. The subagent uses the `message` tool to deliver results directly to the user.
+  </Accordion>
+
+  <Accordion title="Parallel Processing" icon="diagram-nested">
+    Execute multiple independent tasks simultaneously:
+
+    ```json
+    {
+      "tool": "spawn",
+      "parameters": {
+        "prompt": "Search for 'PicoClaw features' and summarize"
+      }
+    }
+    ```
+    
+    ```json
+    {
+      "tool": "spawn",
+      "parameters": {
+        "prompt": "Check GitHub issues and list any critical bugs"
+      }
+    }
+    ```
+
+    Both subagents run concurrently and deliver results via the `message` tool.
+  </Accordion>
+
+  <Accordion title="Specialized Agent Routing" icon="route">
+    Route tasks to specialized agents:
+
+    ```json
+    {
+      "tool": "spawn",
+      "parameters": {
+        "prompt": "Review this pull request for security issues",
+        "target_agent_id": "security-reviewer"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Subagent Communication
+
+Subagents communicate with users through the `message` tool:
+
+```
+Main Agent
+    ↓
+  spawn
+    ↓
+Subagent (independent context)
+    ↓
+  executes task
+    ↓
+  message tool → User receives result
+```
+
+<Info>
+Subagents don't return data to the parent agent. They deliver results directly to the user via the `message` tool or take actions using other tools.
+</Info>
+
+## Configuration
+
+### Allow List
+
+Subagents can be restricted by configuration:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "subagents": {
+        "allowlist": ["default", "code-reviewer", "security-audit"]
+      }
+    }
+  }
+}
+```
+
+If `allowlist` is set, only agents in the list can be spawned.
+
+### Agent-Specific Subagent Config
+
+```json
+{
+  "agents": {
+    "entries": [
+      {
+        "id": "main-agent",
+        "subagents": {
+          "allowlist": ["researcher", "coder"]
+        }
+      }
+    ]
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use for I/O-bound tasks" icon="network-wired">
+    Web searches, API calls, file operations - anything that waits for external resources
+  </Card>
+  
+  <Card title="Keep prompts focused" icon="bullseye">
+    Give subagents clear, specific tasks with all necessary context in the prompt
+  </Card>
+  
+  <Card title="Don't overuse" icon="triangle-exclamation">
+    Each subagent uses memory and resources. Use judiciously for truly parallel work
+  </Card>
+  
+  <Card title="Handle errors gracefully" icon="circle-check">
+    Subagents may fail independently. Ensure main flow continues
+  </Card>
+</CardGroup>
+
+## Security
+
+Subagents inherit all security restrictions:
+
+- **Workspace sandbox** - Same `restrict_to_workspace` setting
+- **Exec safety** - Same dangerous pattern blocks
+- **Path restrictions** - Same allow/deny path patterns
+- **Tool access** - Same tool availability
+
+There is **no way to bypass security** through subagents.
+
+## Example: Heartbeat with Spawn
+
+**HEARTBEAT.md:**
+```markdown
+# Periodic Tasks
+
+- Use spawn to search for "AI agent frameworks" and summarize top 3 results
+- Use spawn to check my calendar and remind me of upcoming events
+```
+
+**Agent behavior:**
+1. Agent reads HEARTBEAT.md
+2. Spawns first subagent with search task
+3. Spawns second subagent with calendar task
+4. Returns HEARTBEAT_OK immediately
+5. Subagents execute independently and message user with results
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Subagent not spawning">
+    - Check if target agent is in allowlist
+    - Verify agent ID exists in configuration
+    - Check logs for spawn errors
+  </Accordion>
+
+  <Accordion title="No response from subagent">
+    - Ensure subagent uses `message` tool to deliver results
+    - Check if subagent completed successfully (logs)
+    - Verify channel context is available
+  </Accordion>
+
+  <Accordion title="Memory usage increasing">
+    - Each subagent uses resources
+    - Limit concurrent subagents
+    - Use spawn only when necessary
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Spawn Tool API" href="/api/tools/spawn" icon="code">
+    Complete API reference for the spawn tool
+  </Card>
+  
+  <Card title="Heartbeat Feature" href="/features/heartbeat" icon="heart-pulse">
+    Learn about periodic tasks and HEARTBEAT.md
+  </Card>
+  
+  <Card title="Message Tool" href="/api/tools/message" icon="message">
+    How subagents communicate with users
+  </Card>
+  
+  <Card title="Agent Configuration" href="/configuration/agents" icon="gear">
+    Configure agents and subagent allowlists
+  </Card>
+</CardGroup>
